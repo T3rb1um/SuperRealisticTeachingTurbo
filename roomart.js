@@ -963,6 +963,10 @@ function renderLabWorld() {
   list.push({ y: G.p.y, f: drawTeacher });
   if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+  if (has('labtidy')) {                                                  // Ausbau: LED-Leiste an der Wand, Kabelkanäle an den Reihen
+    const wy = OY - WALL_H; R(OX, wy + 1, 20 * T, 3, blink(0.5) ? '#7fd3ff' : '#9fe0ff'); ctx.fillStyle = 'rgba(127,211,255,.08)'; ctx.fillRect(OX, wy + 4, 20 * T, 16);
+    for (const x of [1.45, 18.45]) { R(sx(x), sy(2.4), 4, 7.2 * T, '#e6e8ea'); R(sx(x) + 1, sy(2.4), 1, 7.2 * T, '#c9ccd1'); }
+  }
   // Türen: vorne (geöffnet = heller Spalt)
   rmDoor(15.9, 10);
   if (G.doorOpen > 0) R(sx(15.9), OY + RH * T + 1, 64, 15, '#e8d8b8');
@@ -980,6 +984,12 @@ function drawLabOverlay() {
     rr(X - 46, Y, 92, 12, PAL.dark, 2); R(X - 44, Y + 2, Math.round(88 * Math.min(1, P.t / (P.dur || labLevel().dur))), 8, helping ? '#9fd39a' : '#5cc8c0');
     ltext(helping ? 'HILFE X2.5' : 'TEST', X - (helping ? 19 : 8), Y + 3, COL.white, 1);
     if (!helping && atPlant()) ptext('E HALTEN = HELFEN', X, sy(7.5) + 6, COL.white, PAL.dark, 1);
+  }
+  const P2 = G.plant2;
+  if (P2 && has('plant2') && P2.cur && P2.cur.job && P2.cur.job.stage === 'run') {     // zweite Teststation (kleine Anlage)
+    const X = sx(4.6), Y = sy(9.2) - 44;
+    rr(X - 30, Y, 60, 10, PAL.dark, 2); R(X - 28, Y + 2, Math.round(56 * Math.min(1, P2.t / (P2.dur || labLevel().dur))), 6, '#5cc8c0');
+    ltext('TEST 2', X - 12, Y + 2, COL.white, 1);
   }
   if (G.netDown) bubble(sx(15.8), OY - 50 + (blink(4) ? -2 : 0), PAL.red, G.labHold && G.labHold.kind === 'net' ? G.labHold.t / CONFIG.lab.net.hold : 1, 'NET', COL.white, 16);
   if (G.robot && G.robot.stuck) bubble(sx(G.robot.x), sy(G.robot.y) - 100, '#9fd3f0', 1, '!', COL.white, 10);

@@ -1216,7 +1216,23 @@ function renderClassWorld() {
   if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawDoor();
+  if (has('cozy')) drawCozy();
   drawLighting();
+}
+function drawCozy() {                          // Ausbau Klassenraum Stufe 1: Lichterkette, Pflanzen, Leselampe
+  const wy = OY - WALL_H;
+  ctx.strokeStyle = '#3a3540'; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i <= 40; i++) { const x = OX + i * 16, y = wy + 6 + Math.sin(i / 40 * Math.PI * 8) * 3 + 3; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke();
+  for (let i = 0; i < 40; i++) { const x = OX + 8 + i * 16, y = wy + 9 + Math.sin((i + 0.5) / 40 * Math.PI * 8) * 3 + 3; disc(x, y, 2, ['#f7d154', '#f29a4e', '#9fd39a', '#9fd3f0'][i % 4]); if (blink(1, i * 0.3)) { ctx.fillStyle = 'rgba(255,230,160,.25)'; ctx.fillRect(x - 4, y - 4, 9, 9); } }
+  // Pflanze rechts an der Wand
+  const px0 = sx(19.25), py0 = sy(8.6);
+  R(px0, py0 - 14, 18, 14, '#c0603a'); R(px0, py0 - 14, 18, 3, '#d8784a');
+  for (const [dx, dy, r] of [[4, -22, 7], [13, -26, 8], [8, -34, 7], [16, -18, 5], [1, -16, 5]]) disc(px0 + dx, py0 + dy, r, r > 6 ? '#4f9a5a' : '#62b06a');
+  // Leselampe am Regal (warmes Licht)
+  const lx = sx(6.3), ly = sy(0.05);
+  R(lx, ly - 30, 2, 30, '#c9a43e'); rr(lx - 6, ly - 36, 14, 8, '#e8853a', 2);
+  const g = ctx.createRadialGradient(lx, ly - 20, 2, lx, ly - 20, 70); g.addColorStop(0, 'rgba(255,214,140,.28)'); g.addColorStop(1, 'rgba(255,214,140,0)'); ctx.fillStyle = g; ctx.fillRect(lx - 70, ly - 90, 140, 140);
 }
 function renderOverlay() {
   // Blasen mit Geduld-Ring

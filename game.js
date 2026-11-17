@@ -149,14 +149,16 @@ const CONFIG = {
     examTarget: 560,            // Lernpunkte der Klasse in der Woche (9 Stunden) für einen Schnitt von 4,0
     cheatEvery: 9,              // Klassenarbeit: so oft (s) versucht jemand zu spicken
     cheatPatience: 6,           // so lange hast du Zeit, den Spicker zu erwischen
-    examGrowth: 1.2,            // jede Woche wird die Klassenarbeit schwerer
+    examGrowth: 1.08,           // jede Woche wird die Klassenarbeit etwas schwerer (Abwechslung kommt durch die Räume)
+    // Woche 1: jeden Tag etwas Neues
+    newToday: ['Papierstau: Der Kopierer kann klemmen – dann E hämmern.', 'Handys: Vibriert es, schnell hin und E.', 'Besuch an der Tür: Kollegen mit Fragen oder Neuigkeiten.', 'Störenfried: Jemand reißt die Tür auf – mit E rauswerfen.', 'Test in der 2. Stunde.'],
     difficultyPerDay: 0.07,     // jeder Tag: Ereignisse ca. 7 % häufiger
     extraProblemEvery: 3,       // alle 3 Tage darf 1 Problem mehr gleichzeitig offen sein
     changerAfterDay: 2,         // nach Mittwoch: Game-Changer (1 aus 3)
     changerGrade: 3,
     // Berufsschulblock: 4 Wochen, jede bringt etwas Neues. doors = Chance auf Tür-Ereignis pro Stunde.
     block: [
-      { name: 'Ankommen',      exam: 'Test',            news: 'Tafel, Kopierer, Pult und Tür kennenlernen. Noch keine Handys, kein Besuch.', doors: 0, phones: false },
+      { name: 'Ankommen',      exam: 'Test',            news: 'Jeden Tag kommt etwas Neues dazu.', doors: 0.8, phones: true },
       { name: 'Alltag',        exam: 'Klassenarbeit',   news: 'Neu: Besuch an der Tür (Störenfried, Kollegen mit Fragen und Neuigkeiten) und Handys.', doors: 0.8, phones: true },
       { name: 'Stress',        exam: 'Klassenarbeit',   news: 'Neu: Der Ausbilder schaut jeden Tag einmal vorbei. Jede Stunde klopft jemand.', doors: 1, phones: true, trainerDaily: true },
       { name: 'Prüfungswoche', exam: 'Zwischenprüfung', news: 'Die Klasse ist nervös (mehr Unruhe) und es gibt 25 % weniger Taler. Freitag: Zwischenprüfung!', doors: 0.8, phones: true, nervous: 1.12, taler: 0.75 },
@@ -169,31 +171,55 @@ const BASE_CONFIG = structuredClone(CONFIG);
 
 /* Tägliche Upgrades (Feierabend, für Taler, je 3 Stufen) */
 const UPGRADES = [
-  { id: 'shoes',    name: 'Turnschuhe',       desc: '+20 % Laufgeschwindigkeit pro Stufe.',                              cost: [25, 35, 50] },
-  { id: 'pult',     name: 'Größere Ablage',   desc: '+3 Blätter aufs Pult pro Stufe.',                                   cost: [20, 30, 45] },
-  { id: 'copier',   name: 'Kopierer-Wartung', desc: 'Wärmt schneller auf, kühlt schneller ab, Papierstau wird seltener.', cost: [25, 35, 50] },
-  { id: 'chalk',    name: 'Gute Kreide',      desc: '20 % schneller an die Tafel schreiben pro Stufe.',                  cost: [25, 35, 50] },
-  { id: 'presence', name: 'Lehrerblick',      desc: 'Größerer Präsenz-Kreis.',                                           cost: [30, 45, 60] },
-  { id: 'patience', name: 'Geduldige Azubis', desc: 'Blatt-Wünsche, Fragen, WC und Klopfen warten 20 % länger.',         cost: [25, 35, 50] },
-  { id: 'clip',     name: 'Klemmbrett',       desc: 'Mit Blättern in der Hand anschreiben: bis 2 / 4 / beliebig viele (10 % langsamer).', cost: [20, 30, 45] },
+  // allgemein (Lehrkraft, wirkt in jedem Raum)
+  { id: 'shoes',    name: 'Turnschuhe',       desc: '+20 % Laufgeschwindigkeit pro Stufe.',                                cost: [25, 35, 50] },
+  { id: 'patience', name: 'Geduldige Azubis', desc: 'Blatt-Wünsche, Fragen, WC und Klopfen warten 20 % länger.',           cost: [25, 35, 50] },
+  { id: 'presence', name: 'Lehrerblick',      desc: 'Größerer Präsenz-Kreis.',                                             cost: [30, 45, 60] },
+  { id: 'voice',    name: 'Klare Ansage',     desc: 'Ermahnen beruhigt auch die Nachbarn mit: erst zappelige, dann trödelnde, dann laute.', cost: [25, 35, 50] },
+  { id: 'routine',  name: 'Routine',          desc: 'Fragen 20 % schneller erklären pro Stufe.',                           cost: [20, 30, 45] },
+  { id: 'coffee',   name: 'Kaffee',           desc: 'In den ersten 20 s jeder Stunde +15 % Tempo pro Stufe.',               cost: [15, 25, 35] },
+  // Klassenraum
+  { id: 'chalk',    room: 'class', name: 'Gute Kreide',      desc: '20 % schneller an die Tafel schreiben pro Stufe.',                  cost: [25, 35, 50] },
+  { id: 'copier',   room: 'class', name: 'Kopierer-Wartung', desc: 'Wärmt schneller auf, kühlt schneller ab, Papierstau wird seltener.', cost: [25, 35, 50] },
+  { id: 'clip',     room: 'class', name: 'Klemmbrett',       desc: 'Mit Blättern in der Hand anschreiben: bis 2 / 4 / beliebig viele (10 % langsamer).', cost: [20, 30, 45] },
+  { id: 'sort',     room: 'class', name: 'Sortierfach',      desc: 'Aus dem Stapel austeilen geht 25 % schneller pro Stufe.',            cost: [20, 30, 45] },
+  // SPS-Labor
+  { id: 'ssd',      room: 'lab', name: 'SSD-Rechner',        desc: 'PCs hängen seltener, Neustart geht schneller.',                       cost: [25, 35, 50] },
+  { id: 'diag',     room: 'lab', name: 'Diagnose-Software',  desc: 'SPS-Stopp seltener, Fehlersuche (Fragen) schneller.',                cost: [25, 35, 50] },
+  { id: 'estopr',   room: 'lab', name: 'Not-Aus-Routine',    desc: 'Not-Aus kommt seltener und ist schneller quittiert.',                cost: [20, 30, 45] },
+  { id: 'switch',   room: 'lab', name: 'Netzwerk-Switch',    desc: 'Netzwerk fällt seltener aus und ist schneller wieder da.',           cost: [20, 30, 45] },
+  { id: 'quick',    room: 'lab', name: 'Schnelltest',        desc: 'Tests an der Anlage laufen 12 % schneller pro Stufe.',               cost: [25, 35, 50] },
 ];
+const upgradeOk = u => !u.room || u.room === ROOM_ID;
+
+/* Raum-Ausbau: 3 Stufen je Raum, im Shop zu kaufen, im Raum sichtbar. Stufe 2 und 3: 1 aus 3 Game-Changern. */
+const BUILD = {
+  class: [{ cost: 60, opts: ['cozy'] }, { cost: 90, opts: ['tables', 'seating', 'light'] }, { cost: 120, opts: ['beamer', 'netprint', 'gong'] }],
+  lab:   [{ cost: 60, opts: ['labtidy'] }, { cost: 90, opts: ['plant2', 'robot', 'light'] }, { cost: 120, opts: ['sim', 'checker', 'rules'] }],
+};
+const buildLevel = () => (RUN && RUN.build && RUN.build[ROOM_ID]) || 0;
 
 /* Game-Changer: Mittwoch und nach guter Klassenarbeit, 1 aus 3. Jeder hat einen kleinen Haken. */
 const CHANGERS = [
   { id: 'opener',  name: 'Türöffner',             desc: 'Die Tür geht von selbst auf, kurz bevor das Klopfen laut wird.',               catch: 'Für Zuspätkommer gibt es keine Taler mehr.' },
-  { id: 'review',  name: 'Wiederholungsaufgaben', desc: 'Ist die Tafel leer, arbeitet die Klasse an alten Aufgaben weiter und trödelt nicht.', catch: 'Dabei lernt sie nur 30 %.' },
+  { id: 'review',  room: 'class', name: 'Wiederholungsaufgaben', desc: 'Ist die Tafel leer, arbeitet die Klasse an alten Aufgaben weiter und trödelt nicht.', catch: 'Dabei lernt sie nur 30 %.' },
   { id: 'rules',   name: 'Klassenregeln-Poster',  desc: 'Unruhige Azubis zappeln doppelt so lange, bevor sie trödeln.',                  catch: 'Falsch ermahnen kostet doppelt.' },
-  { id: 'beamer',  name: 'Beamer',                desc: 'Du drehst der Klasse beim Schreiben nicht mehr den Rücken zu.',                 catch: '1× pro Tag: „Update wird installiert …“' },
-  { id: 'netprint',name: 'Netzwerkdrucker',       desc: 'Der Kopierer druckt von selbst nach, sobald er leer und abgekühlt ist.',      catch: 'Er druckt nur 4 statt 6 Blätter.' },
+  { id: 'beamer',  room: 'class', name: 'Beamer',                desc: 'Du drehst der Klasse beim Schreiben nicht mehr den Rücken zu.',                 catch: '1× pro Tag: „Update wird installiert …“' },
+  { id: 'netprint',room: 'class', name: 'Netzwerkdrucker',       desc: 'Der Kopierer druckt von selbst nach, sobald er leer und abgekühlt ist.',      catch: 'Er druckt nur 4 statt 6 Blätter.' },
   { id: 'helper',  name: 'Klassensprecher',       desc: 'Ein Azubi holt Blätter vom Pult und teilt sie selbst aus.',                     catch: 'Solange er unterwegs ist, lernt er nichts.' },
   { id: 'seating', name: 'Sitzplan',              desc: 'Laute Azubis stecken niemanden mehr an.',                                      catch: 'Partnerarbeit bringt 15 % weniger.' },
   { id: 'light',   name: 'Lärmampel',             desc: 'Zeigt 3 s vorher, wer als Nächstes unruhig wird.',                              catch: '–' },
-  { id: 'tables',  name: 'Gruppentische',         desc: 'Gruppenarbeit braucht nur 2 statt 4 Blätter.',                                  catch: 'Gruppenarbeit ist etwas lauter.' },
+  { id: 'tables',  room: 'class', name: 'Gruppentische',         desc: 'Gruppenarbeit braucht nur 2 statt 4 Blätter.',                                  catch: 'Gruppenarbeit ist etwas lauter.' },
   { id: 'phonebox',name: 'Handy-Garage',          desc: 'Keine Handys mehr im Unterricht.',                                             catch: 'Unruhe kommt etwas öfter.' },
   { id: 'gong',    name: 'Klangschale',           desc: '1× pro Stunde mit G (Handy: Taste G) alle Unruhigen sofort beruhigen.',          catch: '–' },
   { id: 'techteam',name: 'Azubi-Technikteam',     desc: 'Bei Papierstau geht ein Azubi zum Kopierer und repariert ihn (ca. 6 s).',       catch: 'Er lernt dabei nichts, um ihn herum wird es kurz unruhig.' },
-  { id: 'tutor',   name: 'Lernbegleitung',        desc: 'Fragen auch am Platz klären: beim Azubi E halten (1,5 s).',                    catch: 'Am Platz gibt es nur den halben Lernbonus.' },
-  { id: 'robot',   name: 'Fahrroboter',           desc: 'Im SPS-Labor holt der Fahrroboter Aufgabenkarten vom Drucker und bringt sie zu den Paaren.', req: 'lab', catch: 'Er ist langsam und bleibt manchmal hängen (E zum Anschubsen).' },
+  { id: 'tutor',   room: 'class', name: 'Lernbegleitung',        desc: 'Fragen auch am Platz klären: beim Azubi E halten (1,5 s).',                    catch: 'Am Platz gibt es nur den halben Lernbonus.' },
+  { id: 'robot',   name: 'Fahrroboter',           room: 'lab', desc: 'Der Fahrroboter holt Datenblätter vom Drucker und bringt sie zu den Paaren.', catch: 'Er ist langsam und bleibt manchmal hängen (E zum Anschubsen).' },
+  { id: 'plant2',  room: 'lab', name: 'Zweite Teststation', desc: 'Die kleine Anlage unten testet mit, wenn die große belegt ist.', catch: 'Dort kannst du nicht helfen, Tests dauern normal lang.' },
+  { id: 'sim',     room: 'lab', name: 'Simulation am PC',   desc: 'Paare testen erst virtuell: Tests schlagen nur halb so oft fehl.', catch: 'Tests bringen 20 % weniger Bonus.' },
+  { id: 'checker', room: 'lab', name: 'Azubi-Prüfer',       desc: 'Ein Azubi steht an der Anlage und hilft bei jedem Test (1,6× schneller, seltener Fehler).', catch: 'Er lernt dabei selbst nichts.' },
+  { id: 'cozy',    room: 'class', build: true, name: 'Gemütlich einrichten', desc: 'Pflanzen, Lichterkette, Leselampe: Ordnung erholt sich 50 % schneller.', catch: '–' },
+  { id: 'labtidy', room: 'lab', build: true, name: 'Neue Monitore & Kabelordnung', desc: 'PCs hängen 30 % seltener.', catch: '–' },
   { id: 'helper2', name: 'Klassensprecher+',      desc: 'Der Klassensprecher holt Blätter auch aus dem Kopierer.', req: 'helper',        catch: 'Er ist öfter unterwegs und lernt dann nichts.' },
 ];
 
@@ -506,6 +532,8 @@ function setupTouch() {
     initAudio();
     const b = e.target.closest('[data-buy]');
     if (b && state === 'shop') { buy(+b.dataset.buy); return; }
+    const bb = e.target.closest('[data-build]');
+    if (bb && state === 'shop') { buyBuild(bb.dataset.build); return; }
     const sv = e.target.closest('[data-save]');
     if (sv && state === 'end') { saveGame(+sv.dataset.save); return; }
     const ld = e.target.closest('[data-load]');
@@ -611,7 +639,7 @@ function saveSlotsHtml(mode) {   // mode: 'save' (Ende der Stunde) oder 'load' (
   return rows.length ? `<div class="slots">${rows.join('')}</div>` : '';
 }
 
-function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {}, kidLearn: new Array(12).fill(0), kidFocus: new Array(12).fill(1), grades: [], stars: 0, roomPick }; newDay(); }
+function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {}, kidLearn: new Array(12).fill(0), kidFocus: new Array(12).fill(1), grades: [], stars: 0, roomPick, build: {} }; newDay(); }
 function newDay() {
   RUN.jamLesson = randInt(0, CONFIG.week.lessonsPerDay - 1); RUN.beamerUpdate = true; RUN.prep = {};
   RUN.trainerLesson = blk().trainerDaily ? (RUN.day === CONFIG.week.days.length - 1 ? 0 : randInt(0, CONFIG.week.lessonsPerDay - 1)) : -1;
@@ -638,7 +666,7 @@ function applyModifiers() {
   if (prepOn('warm') && RUN.lesson === 0) CONFIG.copier.warmup = 0;
   if (prepOn('faq')) { CONFIG.events.question.explain *= 0.5; CONFIG.events.question.bonus += 2; }
   if (prepOn('talk') && RUN.lesson === 0) CONFIG.order.recover *= 2;
-  const W = CONFIG.week, lvl = (RUN.week - 1) * W.days.length + RUN.day;
+  const W = CONFIG.week, lvl = Math.min(4, RUN.day) + (RUN.week - 1) * 1.5;   // Woche 1 steigt, danach nur noch leicht
   const d = 1 + W.difficultyPerDay * lvl;
   CONFIG.kids.spawnInterval /= d;
   CONFIG.copier.requestInterval /= d;
@@ -648,11 +676,15 @@ function applyModifiers() {
   CONFIG.events.jamChance += 0.01 * lvl;
   CONFIG.maxProblems += Math.floor(lvl / W.extraProblemEvery);
   CONFIG.door.lateMax += Math.floor(lvl / 5);
-  if (!blk().phones) CONFIG.events.phone.chance = 0;
+  if (!blk().phones || (RUN.week === 1 && RUN.day < 1)) CONFIG.events.phone.chance = 0;   // Handys ab Dienstag
   if (blk().nervous) CONFIG.kids.spawnInterval /= blk().nervous;
   // tägliche Upgrades
   CONFIG.player.speed *= 1 + 0.2 * upLevel('shoes');
-  CONFIG.deskStashMax += 3 * upLevel('pult');
+  CONFIG.deskStashMax += 3 * upLevel('pult');                     // (alte Spielstände)
+  CONFIG.events.question.explain *= Math.pow(0.8, upLevel('routine'));
+  CONFIG.player.coffee = 0.15 * upLevel('coffee');
+  CONFIG.give.stackMin *= Math.pow(0.75, upLevel('sort')); CONFIG.give.stackMax *= Math.pow(0.75, upLevel('sort'));
+  if (has('cozy')) CONFIG.order.recover *= 1.5;
   CONFIG.copier.warmup = Math.max(0.5, CONFIG.copier.warmup - 0.6 * upLevel('copier'));
   CONFIG.copier.cooldown = Math.max(3, CONFIG.copier.cooldown - 2.3 * upLevel('copier'));
   CONFIG.forms.forEach(f => { f.write *= Math.pow(0.8, upLevel('chalk')); });
@@ -666,6 +698,14 @@ function applyModifiers() {
   if (has('beamer')) CONFIG.board.beamer = true;
   if (has('netprint')) { CONFIG.copier.auto = true; CONFIG.copier.trayMax = 4; }
   if (has('helper')) CONFIG.helper = true;
+  if (isLab()) {                                                  // Labor-Upgrades und Ausbau
+    const LB = CONFIG.lab;
+    LB.pc.every *= Math.pow(1.25, upLevel('ssd')) * (has('labtidy') ? 1.3 : 1); LB.pc.hold *= Math.pow(0.75, upLevel('ssd'));
+    LB.plc.every *= Math.pow(1.25, upLevel('diag')); CONFIG.events.question.explain *= Math.pow(0.8, upLevel('diag'));
+    LB.levels.forEach(lv => { lv.estop *= Math.pow(0.6, upLevel('estopr')); lv.dur *= Math.pow(0.88, upLevel('quick')); if (has('sim')) { lv.fail *= 0.5; lv.bonus *= 0.8; } });
+    LB.test.quitHold *= Math.pow(0.7, upLevel('estopr'));
+    LB.net.chance *= Math.pow(0.6, upLevel('switch')); LB.net.hold *= Math.pow(0.7, upLevel('switch'));
+  }
   if (has('seating')) { CONFIG.kids.noSpread = true; CONFIG.forms[1].learn *= 0.85; }
   if (has('light')) CONFIG.forecast = true;
   if (has('tables')) { CONFIG.forms[2].groupSheets = 2; CONFIG.forms[2].noise += 0.2; }
@@ -749,7 +789,7 @@ function newLesson() {
   if (isLab()) labInitLesson();
   const DE = CONFIG.doorEvents;
   G.npc = null; G.npcProg = 0; G.tutor = null; G.trainerAt = null; G.heatT = 0;
-  G.doorEvAt = RUN && !G.exam && Math.random() < blk().doors ? rand(DE.from, DE.to) : null;
+  G.doorEvAt = RUN && !G.exam && (RUN.week > 1 || RUN.day >= 2) && Math.random() < blk().doors ? rand(DE.from, DE.to) : null;   // Tür ab Mittwoch
   if (RUN && !G.exam && RUN.trainerLesson === RUN.lesson) G.trainerAt = rand(25, 60);
   G.printerOn = G.exam && has('netprint'); G.printerOff = null; G.formFx = 0;
   // Zuspätkommer: Platz bleibt leer, später klopft es
@@ -839,6 +879,11 @@ function handsFull() { float(sx(G.p.x), sy(G.p.y) - 72, '!', PAL.red); sfx.wrong
 function reward(k) {
   G.taler += CONFIG.taler.perTask;
   float(sx(k ? k.x : G.p.x), sy(k ? k.y : G.p.y) - 64, '+' + CONFIG.taler.perTask, PAL.yellow);
+}
+function voiceCalm(k) {                       // Upgrade „Klare Ansage“: Nachbarn hören mit
+  const lv = upLevel('voice'); if (!lv) return;
+  const ok = ['fidget', 'idle', 'loud'].slice(0, lv);
+  for (const o of spreadNeighbors(k)) if (o !== k && ok.includes(o.state)) { backToWork(o, 1.5); puff(sx(o.x), sy(o.y) - 44, PAL.white, 3); }
 }
 function makeIdle(k) { k.state = 'idle'; k.t = 0; k.spreadT = 0; }
 function backToWork(k, calm) {
@@ -949,8 +994,9 @@ function tap() {
     }
     float(sx(k.x), sy(k.y) - 80, 'GLEICH!', '#9fd39a'); sfx.calm(); return;
   }
-  if (k.state === 'fidget') { backToWork(k, 2); puff(sx(k.x), sy(k.y) - 44, PAL.white, 4); sfx.calm(); return; }
+  if (k.state === 'fidget') { backToWork(k, 2); puff(sx(k.x), sy(k.y) - 44, PAL.white, 4); sfx.calm(); voiceCalm(k); return; }
   if (isProblem(k)) {
+    voiceCalm(k);
     backToWork(k, 0.6);
     if (k.needsSheet) { k.state = 'wait'; k.t = 0; }   // will das Blatt immer noch (auch bei leerer Tafel)
     else if (k.needsWC) { k.state = 'wc'; k.t = 0; }                     // muss immer noch
@@ -991,7 +1037,7 @@ function helperTick() {
     h.path = isLab() ? findPath(h.x, h.y, RD().deskAt.ax, 1.25) : [{ x: h.cx - 2, y: h.y }, { x: h.cx - 2, y: 2.1 }, { x: 3.0, y: 2.0 }];
   }
 }
-function jobArrive(h) { if (h.job.kind === 'tech') techArrive(h); else if (h.job.kind === 'test') labJobArrive(h); else helperArrive(h); }
+function jobArrive(h) { if (h.job.kind === 'tech') techArrive(h); else if (h.job.kind === 'test' || h.job.kind === 'checker') labJobArrive(h); else helperArrive(h); }
 function helperArrive(h) {
   const j = h.job, ax = h.cx - 2;
   if (isLab()) return helperArriveLab(h);
@@ -1131,8 +1177,11 @@ function npcTick(dt, hold) {
   const DE = CONFIG.doorEvents, NW = DE.news;
   if (G.doorEvAt !== null && G.t >= G.doorEvAt && !G.npc) {
     G.doorEvAt = null;
-    const kind = pickWeighted(DE.weights);
-    npcSpawn(kind, kind === 'news' ? pick(NW.kinds) : null);
+    const w = { ...DE.weights };
+    if (RUN && RUN.week === 1 && RUN.day < 3) delete w.intruder;                       // Störenfried ab Donnerstag
+    const kind = pickWeighted(w);
+    const kinds = NW.kinds.filter(k => !(k === 'trainer' && RUN && RUN.week === 1)); // Ausbilder nicht in Woche 1
+    npcSpawn(kind, kind === 'news' ? pick(kinds) : null);
   }
   if (G.trainerAt !== null && G.t >= G.trainerAt && !G.npc) { G.trainerAt = null; npcSpawn('trainer'); }
   if (G.heatT > 0) G.heatT -= dt;
@@ -1359,7 +1408,7 @@ function update(dt) {
   P.moving = false;
   if (touch.active) { mx = touch.x; my = touch.y; }
   if (!G.writing && !G.give && !G.grab && !G.explaining && !G.deskHold && !G.tutor && !G.printerOff && !G.labHold && !(G.npcProg > 0) && (mx || my)) {
-    const l = Math.hypot(mx, my), v = CONFIG.player.speed * dt;
+    const l = Math.hypot(mx, my), v = CONFIG.player.speed * dt * (G.t < 20 && CONFIG.player.coffee ? 1 + CONFIG.player.coffee : 1);
     const nx = P.x + mx / l * v, ny = P.y + my / l * v, A = CONFIG.player.cornerAssist;
     const offs = [0.1, 0.2, 0.3, A].flatMap(o => [o, -o]);
     if (!blockedAt(nx, P.y)) { P.x = nx; P.moving = true; }
@@ -1471,7 +1520,7 @@ function update(dt) {
         break;
       }
       case 'walk': {
-        if (!k.path.length) { if (k.job && k.job.stage === 'fix') techFixTick(k, dt); else if (k.job && k.job.stage === 'run') { /* testet an der Anlage */ } else if (k.job) jobArrive(k); else backToWork(k, 2); break; }
+        if (!k.path.length) { if (k.job && k.job.stage === 'fix') techFixTick(k, dt); else if (k.job && (k.job.stage === 'run' || k.job.stage === 'stay')) { /* testet bzw. prüft an der Anlage */ } else if (k.job) jobArrive(k); else backToWork(k, 2); break; }
         const wp = k.path[0];
         const dx = wp.x - k.wx, dy = wp.y - k.wy, d = Math.hypot(dx, dy), v = DR.walkSpeed * dt;
         if (d <= v) {
@@ -1647,31 +1696,63 @@ function endLesson() {
     <p class="go">${goText} (Enter)</p>`);
 }
 
+function shopList() { return UPGRADES.map((u, i) => ({ u, i })).filter(x => upgradeOk(x.u)); }
 function openShop() {
   state = 'shop';
   const W = CONFIG.week;
   const title = RUN.queue.includes('nextWeek') ? 'Wochenende!' : `Feierabend – ${W.days[RUN.day]}`;
-  const owned = CHANGERS.filter(c => has(c.id)).map(c => c.name);
-  const items = UPGRADES.map((u, i) => {
-    const lv = upLevel(u.id), max = u.cost.length, cost = u.cost[lv];
+  RUN.build = RUN.build || {};
+  // Ausbaustufe überspringen, wenn alle Optionen schon da sind (z. B. als Belohnung gewählt)
+  const B = BUILD[ROOM_ID];
+  while (B && buildLevel() < B.length && B[buildLevel()].opts.every(id => has(id))) RUN.build[ROOM_ID] = buildLevel() + 1;
+  const card = (x, n) => {
+    const u = x.u, lv = upLevel(u.id), max = u.cost.length, cost = u.cost[lv];
     const maxed = lv >= max, afford = !maxed && RUN.taler >= cost;
-    return `<button class="shopitem${maxed ? ' maxed' : ''}${afford ? '' : ' poor'}" data-buy="${i}" ${maxed ? 'disabled' : ''}>
-      <span class="k">${i + 1}</span><span class="n">${u.name}${max > 1 ? ` <small>${lv}/${max}</small>` : ''}</span>
-      <span class="d">${u.desc}</span><span class="c">${maxed ? 'gekauft' : cost + ' T'}</span></button>`;
-  }).join('');
+    return `<button class="shopitem${maxed ? ' maxed' : ''}${afford ? '' : ' poor'}" data-buy="${x.i}" ${maxed ? 'disabled' : ''}>
+      <span class="k">${n}</span><span class="n">${u.name} <small>${lv}/${max}</small></span>
+      <span class="d">${u.desc}</span><span class="c">${maxed ? 'fertig' : cost + ' T'}</span></button>`;
+  };
+  const list = shopList();
+  const gen = list.filter(x => !x.u.room), room = list.filter(x => x.u.room);
+  let n = 0;
+  const genHtml = gen.map(x => card(x, ++n)).join(''), roomHtml = room.map(x => card(x, ++n)).join('');
+  let buildHtml = '';
+  if (B) {
+    const st = buildLevel();
+    if (st >= B.length) buildHtml = `<p class="test">Ausbau ${RD().name}: fertig (3/3).</p>`;
+    else {
+      const S = B[st];
+      buildHtml = `<h3 class="shophead">Ausbau ${RD().name} – Stufe ${st + 1}/3 <small>${S.cost} T</small></h3><div class="shop">${S.opts.map((id, j) => {
+        const c = CHANGERS.find(x => x.id === id), own = has(id), afford = RUN.taler >= S.cost;
+        return `<button class="shopitem build${own ? ' maxed' : ''}${afford ? '' : ' poor'}" data-build="${id}" ${own ? 'disabled' : ''}>
+          <span class="k">${'ABC'[j]}</span><span class="n">${c.name}</span><span class="c">${own ? 'schon da' : S.cost + ' T'}</span>
+          <span class="d">${c.desc}${c.catch && c.catch !== '–' ? `<br><i>Haken: ${c.catch}</i>` : ''}</span></button>`;
+      }).join('')}</div>`;
+    }
+  }
+  const owned = CHANGERS.filter(c => has(c.id)).map(c => c.name);
   showCard(`
     <h2>${title}</h2>
     <p>Du hast <b style="color:var(--gold)">${RUN.taler} Taler</b>. Was gönnst du dir?</p>
-    <div class="shop">${items}</div>
-    ${owned.length ? `<p class="test">Im Klassenzimmer: ${owned.join(' · ')}</p>` : ''}
+    <h3 class="shophead">Für dich (wirkt überall)</h3><div class="shop">${genHtml}</div>
+    <h3 class="shophead">${RD().name}</h3><div class="shop">${roomHtml}</div>
+    ${buildHtml}
+    ${owned.length ? `<p class="test">Schon da: ${owned.join(' · ')}</p>` : ''}
     <p class="go">Weiter (Enter)</p>`);
+}
+function buyBuild(id) {
+  const B = BUILD[ROOM_ID], st = buildLevel(); if (!B || st >= B.length) return;
+  const S = B[st]; if (!S.opts.includes(id) || has(id)) return;
+  if (RUN.taler < S.cost) { sfx.wrong(); return; }
+  RUN.taler -= S.cost; RUN.ch[id] = true; RUN.build[ROOM_ID] = st + 1; sfx.done();
+  openShop();
 }
 function openChoice() {
   state = 'choice';
-  const left = CHANGERS.filter(c => !has(c.id) && (!c.req || (c.req === 'lab' ? isLab() : has(c.req))));
+  const left = CHANGERS.filter(c => !has(c.id) && !c.build && (!c.room || c.room === ROOM_ID) && (!c.req || has(c.req)));
   if (!left.length) { advance(); return; }
   RUN.offer = left.sort(() => Math.random() - 0.5).slice(0, 3);
-  const reason = RUN.queue.includes('nextWeek') ? 'Belohnung für die gute Klassenarbeit' : 'Bergfest! Neue Idee fürs Klassenzimmer';
+  const reason = RUN.queue.includes('nextWeek') ? 'Belohnung für die gute Klassenarbeit' : `Bergfest! Neue Idee für ${RD().name === 'Klassenraum' ? 'das Klassenzimmer' : 'das ' + RD().name}`;
   const items = RUN.offer.map((c, i) => `<button class="shopitem choice" data-pick="${i}">
       <span class="k">${i + 1}</span><span class="n">${c.name}</span><span class="c"></span>
       <span class="d">${c.desc}<br><i>Haken: ${c.catch}</i></span></button>`).join('');
@@ -1761,6 +1842,7 @@ function openPrep() {
       <span class="d">${p.desc}</span></button>`;
   }).join('') : '';
   showCard(`
+    ${RUN.week === 1 ? `<div class="weekintro"><b>Heute neu:</b> ${CONFIG.week.newToday[RUN.day] || ''}</div>` : ''}
     ${RUN.day === 0 ? `<div class="weekintro"><b>Woche ${RUN.week} von ${CONFIG.week.block.length}: ${blk().name}</b><br>${blk().news}<br><span style="color:var(--muted)">Freitag: ${examName()}</span></div>` : ''}
     <h2>Vorbereitung für ${CONFIG.week.days[RUN.day]}</h2>
     <p style="color:var(--ink)">${T0.name} macht wie immer: <b style="color:var(--gold)">${routine.name}</b>. <span style="color:var(--muted)">${routine.desc}</span></p>
@@ -1926,7 +2008,12 @@ window.addEventListener('keydown', e => {
   if (['end', 'shop', 'exam'].includes(state) && e.code === 'Enter') { advance(); return; }
   if (state === 'end') { const n = +e.key; if (n >= 1 && n <= SAVE_SLOTS) { saveGame(n); return; } }
   if (state === 'choice') { const n = +e.key; if (n >= 1 && n <= 3) pickChanger(n - 1); return; }
-  if (state === 'shop') { const n = +e.key; if (n >= 1 && n <= 9) buy(n - 1); return; }
+  if (state === 'shop') {
+    const n = +e.key, L = shopList(); if (n >= 1 && n <= 9 && L[n - 1]) { buy(L[n - 1].i); return; }
+    const j = { KeyA: 0, KeyB: 1, KeyC: 2 }[e.code], B = BUILD[ROOM_ID];
+    if (j !== undefined && B && buildLevel() < B.length && B[buildLevel()].opts[j]) buyBuild(B[buildLevel()].opts[j]);
+    return;
+  }
   if (state === 'rules') { if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'KeyP') openMenu(); return; }
   if (state === 'pause') {
     if (e.code === 'KeyP' || e.code === 'Escape') { closeMenu(); return; }

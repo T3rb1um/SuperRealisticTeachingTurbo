@@ -30,6 +30,8 @@ const ROOMDEF = {
     copierAt: { x: 1.4, y: 0.4 }, copySpot: { x: 2.1, y: 1.3 },
     deskAt: { x: 9.6, y: 1.6, ax: 9.0 },
     plantSpot: { x: 10.0, y: 7.95 },
+    plant2Spot: { x: 4.6, y: 8.85 },
+    checkerSpot: { x: 12.95, y: 6.6 },
     robotHome: { x: 13.4, y: 1.25 },
     start: { x: 8.6, y: 3.1 },
   },
@@ -168,6 +170,11 @@ const LAB_SUBJECTS = [
 function labInitLesson() {
   const LB = CONFIG.lab;
   G.plant = { cur: null, t: 0, estop: false, queue: [] };
+  G.plant2 = { cur: null, t: 0, estop: false };
+  if (has('checker') && !G.exam) {                    // Azubi-Prüfer: steht an der Anlage und hilft
+    const k = G.kids.slice().reverse().find(k => k.state === 'work');
+    if (k) { const S = RD().checkerSpot; k.state = 'walk'; k.wx = k.x; k.wy = k.y; k.job = { kind: 'checker', stage: 'go' }; k.path = findPath(k.x, k.y, S.x, S.y); }
+  }
   G.netDown = false; G.netAt = !G.exam && Math.random() < LB.net.chance ? rand(LB.net.from, LB.net.to) : null; G.netIdleT = 0;
   G.pcT = LB.pc.firstAt; G.plcT = LB.plc.firstAt; G.testT = LB.test.firstAt; G.labHold = null;
   const h = RD().robotHome;
@@ -253,38 +260,45 @@ function labTick(dt, hold, limit) {
     if (k.state === 'plc' && (k.t += dt) >= LB.plc.patience) labNeedFix(k, 'plc');
     if (k.state === 'test' && (k.t += dt) >= LB.test.patience) labNeedFix(k, 'test');
   }
-  // Anlage: immer nur ein Paar testet, die anderen warten
+  // Teststationen: große Anlage (mit Hilfe) und – als Ausbau – die kleine Anlage unten
   P.queue = P.queue.filter(k => k.state === 'test');
-  if (!P.cur && !P.estop && P.queue.length) {
-    const k = P.queue.shift(), S = RD().plantSpot;
-    k.state = 'walk'; k.wx = k.x; k.wy = k.y; k.job = { kind: 'test', stage: 'go' };
-    k.path = findPath(k.x, k.y, S.x, S.y); P.cur = k; P.t = 0; P.dur = labLevel().dur; P.bonus = labLevel().bonus; P.helped = false;
-  }
-  if (P.cur && P.cur.job && P.cur.job.stage === 'run' && !P.estop) {
-    const helping = G.labHold && G.labHold.kind === 'help';
-    if (helping) P.helped = true;
-    P.t += dt * (helping ? LB.test.helpMult : 1);
-    if (P.t >= (P.dur || lv.dur)) {
-      const k = P.cur;
-      if (!P.hadStop && Math.random() < lv.estop) { P.estop = true; P.hadStop = true; sfx.jam(); float(sx(10), sy(3.9) - 80, 'NOT-AUS!', PAL.red); }
-      else if (Math.random() < lv.fail * (P.helped ? LB.test.helpFail : 1)) {          // Test schlägt fehl → Fehlersuche am Platz
-        P.hadStop = false; P.helped = false; k.debug = true;
-        float(sx(10), sy(3.9) - 80, 'FEHLER!', PAL.orange); sfx.wrong();
-        k.job.stage = 'home'; k.path = findPath(k.wx, k.wy, k.x, k.y); P.cur = null;
-      }
-      else {
-        const b = P.bonus || lv.bonus;
-        G.learn += b; k.learn = (k.learn || 0) + b / 2; if (k.partner) k.partner.learn = (k.partner.learn || 0) + b / 2;
-        G.taler += CONFIG.taler.perTask; P.hadStop = false; P.helped = false;
-        float(sx(10), sy(3.9) - 80, 'TEST OK +' + b, '#7cc47a'); puff(sx(k.wx), sy(k.wy) - 50, '#7cc47a', 8); sfx.done();
-        k.job.stage = 'home'; k.path = findPath(k.wx, k.wy, k.x, k.y); P.cur = null;
-      }
-    }
-  }
+  const P2 = G.plant2;
+  const send = (S, spot) => {
+    const k = P.queue.shift();
+    k.state = 'walk'; k.wx = k.x; k.wy = k.y; k.job = { kind: 'test', stage: 'go', st: S === P ? 1 : 2 };
+    k.path = findPath(k.x, k.y, spot.x, spot.y); S.cur = k; S.t = 0; S.dur = labLevel().dur; S.bonus = labLevel().bonus; S.helped = false;
+  };
+  if (!P.cur && !P.estop && P.queue.length) send(P, RD().plantSpot);
+  if (P2 && has('plant2') && !P2.cur && P.queue.length) send(P2, RD().plant2Spot);
+  const checker = G.kids.some(k => k.job && k.job.kind === 'checker' && k.job.stage === 'stay');
+  runStation(P, dt, lv, true, checker);
+  if (P2 && has('plant2')) runStation(P2, dt, lv, false, false);
   robotTick(dt);
 }
+function runStation(S, dt, lv, main, checker) {
+  const LB = CONFIG.lab, X = main ? 10 : 4.6, Y = main ? 3.9 : 8.6;
+  if (!(S.cur && S.cur.job && S.cur.job.stage === 'run' && !S.estop)) return;
+  const helping = main && G.labHold && G.labHold.kind === 'help';
+  if (helping || checker) S.helped = true;
+  S.t += dt * (helping ? LB.test.helpMult : checker ? 1.6 : 1);
+  if (S.t < (S.dur || lv.dur)) return;
+  const k = S.cur;
+  if (main && !S.hadStop && Math.random() < lv.estop) { S.estop = true; S.hadStop = true; sfx.jam(); float(sx(X), sy(Y) - 80, 'NOT-AUS!', PAL.red); return; }
+  if (Math.random() < lv.fail * (S.helped ? LB.test.helpFail : 1)) {                   // Test schlägt fehl → Fehlersuche am Platz
+    S.hadStop = false; S.helped = false; k.debug = true;
+    float(sx(X), sy(Y) - 80, 'FEHLER!', PAL.orange); sfx.wrong();
+  } else {
+    const b = S.bonus || lv.bonus;
+    G.learn += b; k.learn = (k.learn || 0) + b / 2; if (k.partner) k.partner.learn = (k.partner.learn || 0) + b / 2;
+    G.taler += CONFIG.taler.perTask; S.hadStop = false; S.helped = false;
+    float(sx(X), sy(Y) - 80, 'TEST OK +' + Math.round(b), '#7cc47a'); puff(sx(k.wx), sy(k.wy) - 50, '#7cc47a', 8); sfx.done();
+  }
+  k.job.stage = 'home'; k.path = findPath(k.wx, k.wy, k.x, k.y); S.cur = null;
+}
+
 function labJobArrive(k) {
   const j = k.job;
+  if (j.kind === 'checker') { j.stage = 'stay'; k.face = 'left'; return; }
   if (j.stage === 'go') { j.stage = 'run'; k.face = 'up'; return; }
   if (j.stage === 'home') {
     k.job = null; backToWork(k, 2);
