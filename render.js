@@ -1013,7 +1013,7 @@ function drawTeacherFigure(T0, X, Y, o) {
 function drawTeacher() {
   const P = G.p, T0 = TEACHERS[CONFIG.teacher || 0] || TEACHERS[0];
   drawTeacherFigure(T0, sx(P.x), sy(P.y), {
-    face: P.face, moving: P.moving, walk: P.walk, writing: G.writing, explaining: G.explaining, carry: G.carry, give: G.give,
+    face: P.face, moving: P.moving, walk: P.walk, writing: G.writing, explaining: G.explaining || !!(G.labHold && G.labHold.kind === 'help') || !!G.tutor, carry: G.carry, give: G.give,
     shoe: upLevel('shoes') ? ['', '#e8534a', '#5cc8c0', '#f7d154'][Math.min(3, upLevel('shoes'))] : (T0.shoe || '#3a2a22'), shoeStripe: upLevel('shoes') >= 1 || !!T0.sneakers,
     gl: upLevel('presence') ? ['', '#3d5f8a', '#c9a43e', '#d94a3a'][Math.min(3, upLevel('presence'))] : null,
   });
