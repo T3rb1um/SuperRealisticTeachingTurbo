@@ -397,6 +397,8 @@ function drawTeacherDesk() {
   for (let i = 0; i < 3; i++) { const ph = (t * 0.6 + i / 3) % 1; R(X + 47 + Math.sin(t * 2 + i) * 2, Y + 18 - ph * 14, 1, 3, `rgba(255,255,255,${(0.6 * (1 - ph)).toFixed(2)})`); }
   // Sukkulente
   R(X + 30, Y + 24, 8, 6, '#d9774a'); disc(X + 34, Y + 21, 3, '#7cc47a'); px(X + 33, Y + 18, '#9fd39a');
+  // Klemmbrett (Upgrade)
+  if (upLevel('clip')) { R(X + 74, Y + 18, 14, 17, '#a8794a'); R(X + 75, Y + 21, 12, 13, COL.white); R(X + 78, Y + 16, 6, 4, '#9aa2ab'); for (let i = 0; i < Math.min(3, upLevel('clip')) + 1; i++) R(X + 77, Y + 24 + i * 3, 8, 1, '#9ab'); }
   // Ablage für Blätter
   const ax = X + 4, ay = Y + 16;
   if (upLevel('pult')) { R(ax - 2, ay - 2, 26, 18, COL.oakDD); R(ax, ay, 22, 14, COL.oakL); }
@@ -720,6 +722,7 @@ function drawWalker(k) {          // Zuspätkommer, WC-Gänger, Klassensprecher
   rr(X - 10, Y - 30 - bob, 20, 19, jc, 3); R(X + 6, Y - 28 - bob, 3, 16, shade(jc, -0.2)); R(X - 10, Y - 22 - bob, 20, 2, k.accent);
   R(X - 13, Y - 28 - bob, 4, 13, jc); R(X + 9, Y - 28 - bob, 4, 13, jc);
   R(X + 3, Y - 30 - bob, 3, 18, '#3a3d46');                   // Rucksackgurt
+  if (k.job && k.job.kind === 'tech' && k.job.stage === 'fix') { const w = Math.round(Math.sin(clockT * 16) * 2); R(X - 18, Y - 24 - bob + w, 8, 3, '#9aa2ab'); R(X - 20, Y - 26 - bob + w, 3, 7, '#9aa2ab'); R(X - 12, Y - 24 - bob + w, 3, 3, k.skin); }
   if (k.job && k.job.has) { R(X + 9, Y - 20 - bob, 8, 10, COL.white); R(X + 10, Y - 17 - bob, 5, 1, '#c9d3dc'); R(X + 9, Y - 16 - bob, 4, 4, k.skin); }   // Blatt in der Hand
   const turn = k.face === 'up' ? 0 : k.face === 'down' ? 2 : 1, side = k.face === 'left' ? -1 : 1;
   drawHead(k, X - 8, Y - 46 - bob, turn, side, 'smile');
@@ -736,6 +739,7 @@ const TEACHERS = [
 ];
 
 function drawGlasses(T0, x, y, s) {           // x,y: linke obere Ecke des linken Glases
+  if (T0.glasses === 'none' && !T0.gl) return;
   const c = T0.gl || T0.glColor || '#5a3a2a';
   const one = gx => {
     if (T0.glasses === 'thick') { R(gx, y - 1, 6, 2, c); R(gx, y + 4, 6, 1, c); R(gx, y, 1, 5, c); R(gx + 5, y, 1, 5, c); R(gx + 1, y + 1, 4, 3, 'rgba(255,255,255,.12)'); }
@@ -992,6 +996,59 @@ function drawTeacherSheet() {
 }
 
 
+/* ================================================ Besucher an der Tür */
+const NPC_LOOKS = {
+  teen:    { name: 'Nachbarklasse', walkAnim: true, skin: '#e8b48a', hair: '#2a1e18', style: 'wild', coat: '#c0503a', shirt: '#26232e', pants: '#2f3a55', w: 18, legs: 11, body: 18, plain: true, glasses: 'none' },
+  trainer: { name: 'Ausbilder', walkAnim: true, skin: '#f0c4a0', hair: '#6b6b70', style: 'bald', temples: '#6b6b70', coat: '#2f5f9a', shirt: '#2f5f9a', pants: '#2f5f9a', w: 23, legs: 12, body: 22, polo: true, beard: 'short', glasses: 'none' },
+};
+function drawNpc() {
+  const n = G.npc;
+  if (!n || n.stage === 'knock') return;
+  const T0 = typeof n.look === 'number' ? TEACHERS[n.look] : NPC_LOOKS[n.look];
+  drawTeacherFigure(T0, sx(n.x), sy(n.y), { face: n.face, moving: n.moving, walk: n.walk, shoe: T0.shoe || '#3a2a22', shoeStripe: !!T0.sneakers || n.look === 'teen' });
+  if (n.look === 'trainer' && n.stage === 'stay') { const X = sx(n.x), Y = sy(n.y); R(X + 10, Y - 34, 10, 13, '#a8794a'); R(X + 11, Y - 32, 8, 10, COL.white); R(X + 12, Y - 29, 6, 1, '#9ab'); R(X + 12, Y - 26, 4, 1, '#9ab'); }
+}
+function newsIcon(kind, x, y) {          // kleine Pixelbildchen in der Sprechblase
+  x = Math.round(x); y = Math.round(y);
+  if (kind === 'toilet') {
+    R(x - 5, y - 8, 7, 5, COL.white); R(x - 6, y - 3, 11, 4, COL.white); R(x - 4, y + 1, 7, 5, COL.white); R(x - 5, y - 2, 9, 1, '#9ab');
+    R(x + 3, y - 8, 2, 2, PAL.red); R(x + 5, y - 6, 2, 2, PAL.red); R(x + 3, y - 4, 2, 2, PAL.red); R(x + 5, y - 8, 2, 2, PAL.red); R(x + 3, y - 6, 2, 2, PAL.red);
+  } else if (kind === 'copier') {
+    R(x - 7, y - 4, 14, 9, '#d8dade'); R(x - 6, y - 7, 12, 3, '#9aa2ab'); R(x - 4, y + 5, 8, 2, COL.white); R(x + 2, y - 2, 3, 2, '#5cc8c0');
+    R(x - 2, y - 3, 2, 5, PAL.red); R(x - 2, y + 3, 2, 1, PAL.red);
+  } else if (kind === 'cake') {
+    R(x - 7, y, 14, 6, '#c08a5a'); R(x - 7, y - 3, 14, 4, '#f2a0b8'); R(x - 6, y + 2, 12, 1, '#f2a0b8');
+    R(x - 1, y - 8, 2, 5, COL.white); R(x - 1, y - 10, 2, 2, blink(6) ? PAL.yellow : PAL.orange);
+  } else if (kind === 'trainer') {
+    R(x - 6, y - 4, 12, 6, PAL.yellow); R(x - 4, y - 7, 8, 3, PAL.yellow); R(x - 8, y + 1, 16, 2, '#c9a43e'); R(x - 1, y - 7, 2, 7, '#c9a43e');
+    R(x - 4, y + 4, 8, 3, '#f0c4a0');
+  } else if (kind === 'heat') {
+    disc(x, y, 4, PAL.yellow);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + clockT; R(x + Math.cos(a) * 7 - 1, y + Math.sin(a) * 7 - 1, 2, 2, PAL.orange); }
+  }
+}
+function drawNpcBubbles() {
+  const n = G.npc, DE = CONFIG.doorEvents;
+  if (!n) return;
+  const doorX = sx(DOOR.cx), doorY = sy(RH) - 44;
+  if (n.stage === 'knock') {                          // Symbol über der Tür
+    if (n.kind === 'news') { bubble(doorX, doorY, COL.white, 1 - n.t / DE.knockTime, '', '#9fd3f0', 13); newsIcon(n.news, doorX, doorY); }
+    else if (n.kind === 'trainer') { bubble(doorX, doorY, COL.white, 1 - n.t / DE.knockTime, '', '#9fd3f0', 13); newsIcon('trainer', doorX, doorY); }
+    else bubble(doorX, doorY, '#9fd3f0', 1 - n.t / DE.knockTime, '?', COL.white);
+    return;
+  }
+  const X = sx(n.x), Y = sy(n.y) - 78;
+  if (n.kind === 'intruder' && n.stage !== 'out') bubble(X, Y + (blink(8) ? -2 : 0), PAL.red, 1 - n.t / DE.intruder.stay, 'HEY', '#ffb36b', 15);
+  if (n.kind === 'question' && n.stage === 'stay') {
+    const late = n.t >= DE.question.patience;
+    bubble(X, Y, late ? PAL.orange : '#9fd3f0', 1 - n.t / DE.question.stay, '?', late ? PAL.red : COL.white);
+  }
+  if (n.kind === 'news' && (n.stage === 'stay' || n.stage === 'copying' || n.stage === 'toCopier')) {
+    bubble(X, Y, COL.white, n.stage === 'stay' ? 1 - n.t / DE.news.stay : G.copier.busy / DE.news.copierBusy, '', n.listened ? '#9fd39a' : '#9fd3f0', 13);
+    newsIcon(n.news, X, Y);
+  }
+}
+
 /* =========================================================== Overlay */
 function bubble(cx, cy, color, frac, glyph, ringColor, r = 11) {
   cx = Math.round(cx); cy = Math.round(cy);
@@ -1096,6 +1153,7 @@ function render() {
     if (k.state === 'walk') list.push({ y: k.wy, f: () => drawWalker(k) });
   }
   list.push({ y: G.p.y, f: drawTeacher });
+  if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawDoor();
   drawLighting();
@@ -1129,6 +1187,8 @@ function render() {
     const loud = k.t > CONFIG.door.patience;
     bubble(sx(DOOR.cx), sy(RH) - 44 + (loud && blink(10) ? -2 : 0), PAL.orange, loud ? 1 : 1 - k.t / CONFIG.door.patience, knockers.length > 1 ? '!' + knockers.length : '!', loud ? PAL.red : COL.white, knockers.length > 1 ? 13 : 11);
   }
+  drawNpcBubbles();
+  if (G.noWC) { const X = sx(DOOR.cx) + 34, Y = sy(RH) - 60; rr(X - 12, Y - 10, 24, 20, 'rgba(38,35,46,.75)', 3); newsIcon('toilet', X, Y); }   // Erinnerung: WC zu
   if (G.copier.jam) bubble(sx(1.1), sy(8.5) - 84, PAL.red, 1 - G.copier.hits / CONFIG.events.jamHits, '!', COL.white);
   if (G.supply <= 0 && !CONFIG.board.review) bubble(sx(10), OY - WALL_H + 40, PAL.red, 1 - Math.min(1, G.emptyT / CONFIG.board.emptyDelay), '!', COL.white);
 
@@ -1145,6 +1205,7 @@ function render() {
     if (tg.type === 'copier') { X = sx(1.1); Y = sy(8.5) - 96; }
     else if (tg.type === 'desk') { X = sx(2.2); Y = sy(0.15) - 50; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }
+    else if (tg.type === 'npc') { X = sx(G.npc.x); Y = sy(G.npc.y) - 112; }
     else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
     const b = Math.round(Math.sin(clockT * 6) * 2);
     for (let i = 0; i < 5; i++) R(X - 6 + i, Y + i + b, 13 - i * 2, 1, COL.white);
@@ -1157,7 +1218,7 @@ function render() {
   }
 
   // Fortschritt beim Halten
-  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : null;
+  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : null;
   if (prog) { const X = sx(G.p.x), Y = sy(G.p.y) - 80; rr(X - 18, Y, 36, 8, PAL.dark, 2); R(X - 16, Y + 2, Math.round(32 * Math.min(1, prog[0])), 4, prog[1]); }
 
   for (const p of G.parts) { const s = p.s ? 2 : 3; R(p.x, p.y, s, s, p.color); }
