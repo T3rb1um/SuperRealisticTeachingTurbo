@@ -709,6 +709,7 @@ function giveSheet(k) {
   G.carry--;
   k.needsSheet = false;
   backToWork(k, 1.5);
+  k.state = 'work';                     // mit Blatt hat der Azubi Arbeit, auch wenn die Tafel leer ist
   reward(k);
   puff(sx(k.x), sy(k.y) - 36, PAL.white, 6);
   sfx.paper();
@@ -748,7 +749,7 @@ function tap() {
   if (k.state === 'fidget') { backToWork(k, 2); puff(sx(k.x), sy(k.y) - 44, PAL.white, 4); sfx.calm(); return; }
   if (isProblem(k)) {
     backToWork(k, 0.6);
-    if (k.needsSheet && G.supply > 0) { k.state = 'wait'; k.t = 0; }   // will das Blatt immer noch
+    if (k.needsSheet) { k.state = 'wait'; k.t = 0; }   // will das Blatt immer noch (auch bei leerer Tafel)
     else if (k.needsWC) { k.state = 'wc'; k.t = 0; }                     // muss immer noch
     reward(k);
     puff(sx(k.x), sy(k.y) - 44, PAL.white);
@@ -795,7 +796,7 @@ function useGong() {
   G.gongLeft--; G.gongFx = 1;
   for (const k of G.kids) if (['fidget', 'idle', 'loud'].includes(k.state)) {
     backToWork(k, 4);
-    if (k.needsSheet && G.supply > 0) { k.state = 'wait'; k.t = 0; } else if (k.needsWC) { k.state = 'wc'; k.t = 0; }
+    if (k.needsSheet) { k.state = 'wait'; k.t = 0; } else if (k.needsWC) { k.state = 'wc'; k.t = 0; }
   }
   sfx.gong();
 }
@@ -901,6 +902,7 @@ function update(dt) {
     else if (hold) {
       H.t += dt;
       const due = Math.floor(H.t / CONFIG.deskTakeEvery);       // nach 0,35 s das 1. Blatt, dann alle 0,35 s eins mehr
+      if (due > 0 && H.took === 0 && G.stash === 0 && G.carry > 0) { deskTap(); H.took = 1e9; }      // nichts zu nehmen → ablegen
       while (H.took < due) { if (!deskTakeOne()) { H.took = 1e9; break; } H.took++; }
     } else {
       if (H.took === 0) deskTap();
@@ -1037,7 +1039,7 @@ function update(dt) {
             else if (k.leaving) { k.leaving = false; k.state = 'away'; k.arriveAt = G.t + rand(E.wc.awayMin, E.wc.awayMax); G.doorOpen = 0.8; sfx.door(); }
             else {
               backToWork(k, 2);
-              if (k.late && G.supply > 0 && Math.random() < DR.wantSheetChance) { k.state = 'wait'; k.t = 0; }
+              if (k.late && Math.random() < DR.wantSheetChance) { k.state = 'wait'; k.t = 0; }
               k.late = false;
             }
           }
@@ -1081,7 +1083,7 @@ function update(dt) {
   if (!G.exam) G.sheetT -= dt;
   if (G.sheetT <= 0) {
     if (G.t >= CC.firstRequestAt && openProblems() < limit) {
-      const c = G.kids.filter(k => k.state === 'work' && k.calm <= 0);
+      const c = G.kids.filter(k => (k.state === 'work' || k.state === 'done') && k.calm <= 0);
       if (c.length) { const k = pick(c); k.state = 'wait'; k.t = 0; }
     }
     G.sheetT = CC.requestInterval * (1 + rand(-1, 1) * CC.requestJitter);
