@@ -307,6 +307,51 @@ const MUSIC = {
         69, 0, 0, 72, 0, 0, 74, 0, 72, 0, 69, 0, 67, 0, 0, 0, 65, 0, 0, 67, 0, 69, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0,
         67, 0, 0, 64, 0, 0, 67, 0, 71, 0, 0, 0, 72, 0, 0, 0, 71, 0, 67, 0, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 };
+// SPS-Labor: kühler, elektronischer, gleichmäßiger Puls wie eine laufende Anlage, dazu kleine Piep-Töne
+const LAB_MUSIC = {
+  bpm: 100,
+  chords: [[57, 60, 64, 71], [53, 57, 60, 64], [50, 53, 57, 60], [52, 55, 59, 62]],   // Am9 – Fmaj7 – Dm7 – Em7
+  bass: [45, 41, 38, 40],
+  seq: [0, 2, 1, 3, 2, 1, 3, 2],                                                      // Sequencer-Arpeggio (Akkordtöne)
+  mel: [0, 0, 0, 0, 76, 0, 0, 0, 0, 0, 74, 0, 72, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 71, 0, 72, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 69, 0, 0, 0, 0, 0, 72, 0, 74, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 69, 0, 0, 0, 72, 0, 0, 0, 74, 0, 0, 0, 0, 0, 77, 0, 76, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 71, 0, 0, 0, 0, 0, 74, 0, 0, 0, 76, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 0, 76, 0, 74, 0, 71, 0],
+  beeps: { 29: 96, 61: 93, 93: 98, 110: 91, 125: 96 },                               // Piep-Töne (wie Maschinen-Quittungen)
+};
+let noiseBuf = null;
+function mnoise(t, dur, vol, hp, dest) {
+  if (!noiseBuf) { noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.3, actx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const n = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+  n.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = hp;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  n.connect(f).connect(g).connect(dest); n.start(t); n.stop(t + dur + 0.02);
+}
+function mkick(t, vol, dest) {
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  o.connect(g).connect(dest); o.start(t); o.stop(t + 0.2);
+}
+function mbassPulse(m, t, dur, vol, cutoff, dest) {   // Sägezahn durch Tiefpass = weicher, pulsierender Synth-Bass
+  const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(mtof(m), t);
+  f.type = 'lowpass'; f.frequency.setValueAtTime(cutoff, t); f.frequency.exponentialRampToValueAtTime(cutoff * 0.4, t + dur); f.Q.value = 6;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(f).connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.05);
+}
+function labMusicStep(st, t, sx16) {
+  const M = LAB_MUSIC, ci = Math.floor(st / 32), ch = M.chords[ci], dest = music.gain;
+  const wob = 500 + 300 * Math.sin(st / 128 * Math.PI * 2);                         // Filter öffnet und schließt langsam
+  if (st % 32 === 0) ch.forEach((m, i) => mnote(m, t + i * 0.01, sx16 * 31, 'triangle', 0.014, dest));          // leiser Flächen-Akkord
+  if (st % 2 === 0) mbassPulse(M.bass[ci] + (st % 8 === 6 ? 12 : 0), t, sx16 * 1.6, 0.06, wob, dest);         // Achtel-Puls
+  if (st % 4 === 0) mkick(t, 0.07, dest);                                                                         // leiser Kick
+  if (st % 4 === 2) mnoise(t, 0.05, 0.025, 7000, dest);                                                           // Hi-Hat
+  if (st % 16 === 12) mnoise(t, 0.12, 0.02, 2500, dest);                                                          // Clap-artig
+  mnote(ch[M.seq[st % 8]] + 12, t, sx16 * 0.9, 'square', st % 2 ? 0.004 : 0.007, dest);                          // Sequencer
+  const m = M.mel[st]; if (m) mnote(m, t, sx16 * 3.5, 'triangle', 0.036, dest);                                   // Melodie
+  const b = M.beeps[st]; if (b) { mnote(b, t, 0.06, 'sine', 0.025, dest); mnote(b, t + 0.09, 0.06, 'sine', 0.02, dest); }   // Piep-Piep
+}
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 function mnote(m, t, dur, type, vol, dest) {
   const o = actx.createOscillator(), g = actx.createGain();
@@ -316,9 +361,12 @@ function mnote(m, t, dur, type, vol, dest) {
 }
 function musicTick() {
   if (!actx || !music.on) return;
-  const sixteenth = 60 / MUSIC.bpm / 4;
+  const lab = typeof isLab === 'function' && isLab() && state !== 'title';
+  const sixteenth = 60 / (lab ? LAB_MUSIC.bpm : MUSIC.bpm) / 4;
+  if (music.lab !== lab) { music.lab = lab; music.step = 0; }                        // Raumwechsel → Stück von vorn
   if (music.next < actx.currentTime) music.next = actx.currentTime + 0.05;
   while (music.next < actx.currentTime + 0.25) {
+    if (lab) { labMusicStep(music.step % 128, music.next, sixteenth); music.next += sixteenth; music.step++; continue; }
     const st = music.step % 128, ci = Math.floor(st / 32), t = music.next, ch = MUSIC.chords[ci];
     if (st % 16 === 0) ch.forEach((m, i) => mnote(m, t + i * 0.015, sixteenth * 15, 'triangle', 0.022, music.gain));   // Pad
     if (st % 8 === 0) mnote(MUSIC.bass[ci], t, sixteenth * 6, 'sine', 0.09, music.gain);                              // Bass
