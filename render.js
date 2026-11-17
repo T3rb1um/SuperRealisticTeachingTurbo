@@ -690,11 +690,11 @@ function drawWalker(k) {          // Zuspätkommer, WC-Gänger, Klassensprecher
 /* ===================================================== Lehrkräfte */
 // Auswahl über CONFIG.teacher (Index). Jede Lehrkraft: Farben, Statur, Frisur, Brille, Bart.
 const TEACHERS = [
-  { name: 'Frau Sommer', skin: '#f2c9a0', hair: '#7a4a2a', style: 'bun',   glasses: 'rect',  coat: '#d9a441', shirt: '#fff1d6', pants: '#3f4f7a', w: 22, legs: 12, body: 21 },
-  { name: 'Herr Brandt', skin: '#f0c4a0', hair: '#38373d', temples: '#a9a7ad', style: 'wild', glasses: 'round', coat: '#7a9cc0', shirt: '#7a9cc0', pants: '#4a4440', w: 23, legs: 11, body: 22, belly: true, beard: 'stubble', buttonShirt: true },
+  { name: 'Frau Sommer', walkAnim: true, skin: '#f2c9a0', hair: '#7a4a2a', style: 'bun',   glasses: 'rect',  coat: '#d9a441', shirt: '#fff1d6', pants: '#3f4f7a', w: 22, legs: 12, body: 21 },
+  { name: 'Herr Brandt', walkAnim: true, skin: '#f0c4a0', hair: '#38373d', temples: '#a9a7ad', style: 'wild', glasses: 'round', coat: '#7a9cc0', shirt: '#7a9cc0', pants: '#4a4440', w: 23, legs: 11, body: 22, belly: true, beard: 'stubble', buttonShirt: true },
   { name: 'Herr Demir',  walkAnim: true, skin: '#f2c6a4', hair: '#9a7a58', style: 'bald', glasses: 'thick', glColor: '#151417', coat: '#24304a', shirt: '#24304a', pants: '#4a6a9a', w: 22, legs: 13, body: 22, beard: 'stubble', grin: true, fleece: true, logo: true, jeans: true, shoe: '#7a2236', sneakers: true },
-  { name: 'Frau Roth',   skin: '#f9dcc0', hair: '#c8502a', style: 'long',  glasses: 'round', coat: '#4f8a6a', shirt: '#f2e6d0', pants: '#4a3a5a', w: 16, legs: 9,  body: 17, scarf: '#e8b84a' },
-  { name: 'Frau Adeyemi',skin: '#f6d6bc', hair: '#1a1418', style: 'bob',   glasses: 'cat',   coat: '#7a4a8a', shirt: '#f2e6d0', pants: '#2f2f38', w: 20, legs: 11, body: 21, necklace: true },
+  { name: 'Frau Roth', walkAnim: true,   skin: '#f9dcc0', hair: '#c8502a', style: 'long',  glasses: 'round', coat: '#4f8a6a', shirt: '#f2e6d0', pants: '#4a3a5a', w: 16, legs: 9,  body: 17, scarf: '#e8b84a' },
+  { name: 'Frau Adeyemi', walkAnim: true,skin: '#f6d6bc', hair: '#1a1418', style: 'bob',   glasses: 'cat',   coat: '#7a4a8a', shirt: '#f2e6d0', pants: '#2f2f38', w: 20, legs: 11, body: 21, necklace: true },
 ];
 
 function drawGlasses(T0, x, y, s) {           // x,y: linke obere Ecke des linken Glases
@@ -922,6 +922,18 @@ function drawTeacher() {
     gl: upLevel('presence') ? ['', '#3d5f8a', '#c9a43e', '#d94a3a'][Math.min(3, upLevel('presence'))] : null,
   });
   if (upLevel('shoes') >= 3 && P.moving && blink(12)) { R(sx(P.x) - 11, sy(P.y) - 3, 2, 2, PAL.yellow); R(sx(P.x) + 10, sy(P.y) - 2, 2, 2, PAL.yellow); }
+}
+
+// Kleines Porträt (Data-URL) fürs Auswahlmenü
+const portraitCache = {};
+function teacherPortrait(idx) {
+  if (portraitCache[idx]) return portraitCache[idx];
+  const c = document.createElement('canvas'); c.width = 40; c.height = 64;
+  const real = ctx; ctx = c.getContext('2d');
+  const T0 = TEACHERS[idx];
+  drawTeacherFigure(T0, 20, 61, { face: 'down', shoe: T0.shoe, shoeStripe: !!T0.sneakers });
+  ctx = real;
+  return (portraitCache[idx] = c.toDataURL());
 }
 
 // Vorschau-Blatt: alle Lehrkräfte von vorne, Seite, hinten (für die Auswahl)

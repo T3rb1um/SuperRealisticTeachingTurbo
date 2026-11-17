@@ -388,9 +388,13 @@ function setupTouch() {
     initAudio();
     const b = e.target.closest('[data-buy]');
     if (b && state === 'shop') { buy(+b.dataset.buy); return; }
+    const tb = e.target.closest('[data-teacher]');
+    if (tb && state === 'title') { pickTeacher(+tb.dataset.teacher); return; }
+    const pr = e.target.closest('[data-prep]');
+    if (pr && state === 'prep') { togglePrep(+pr.dataset.prep); return; }
     const pk = e.target.closest('[data-pick]');
     if (pk && state === 'choice') { pickChanger(+pk.dataset.pick); return; }
-    if (['title', 'end', 'shop', 'exam'].includes(state)) { if (e.target.closest('.go')) advance(); }   // sonst: Text scrollen
+    if (['title', 'prep', 'end', 'shop', 'exam'].includes(state)) { if (e.target.closest('.go')) advance(); }   // sonst: Text scrollen
     else if (state === 'pause') { state = 'play'; hideCard(); }
   });
 }
@@ -417,8 +421,34 @@ let RUN = null;            // der aktuelle Durchgang (Woche, Tag, Taler, Upgrade
 let best = 0;
 try { best = +(localStorage.getItem('kig_best_weeks') || 0); } catch (e) { best = 0; }
 
-function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [] }; newDay(); }
-function newDay() { RUN.jamLesson = randInt(0, CONFIG.week.lessonsPerDay - 1); RUN.beamerUpdate = true; }   // 1× pro Tag Papierstau / Beamer-Update
+/* Lehrkräfte zur Auswahl (Index in TEACHERS, render.js) mit kleiner Eigenschaft (ca. 10–15 %) */
+const TEACHER_PICK = [
+  { idx: 2, trait: 'Organisationstalent', desc: 'Teilt Blätter aus dem Stapel 40 % schneller aus, der Kopierer wärmt 20 % schneller auf.',
+    apply: C => { C.give.stackMin *= 0.6; C.give.stackMax *= 0.6; C.copier.warmup *= 0.8; } },
+  { idx: 1, trait: 'Ruhepol', desc: 'Präsenz-Kreis 15 % größer, läuft dafür 5 % langsamer.',
+    apply: C => { C.presence.radius *= 1.15; C.player.speed *= 0.95; } },
+  { idx: 3, trait: 'Flink', desc: 'Läuft 12 % schneller.',
+    apply: C => { C.player.speed *= 1.12; } },
+  { idx: 4, trait: 'Erfahren', desc: 'Beruhigt zappelige Azubis doppelt so schnell und erklärt Fragen 30 % schneller.',
+    apply: C => { C.kids.presenceCalm *= 0.5; C.events.question.explain *= 0.7; } },
+];
+let teacherPick = 0;
+try { teacherPick = clamp(+(localStorage.getItem('kig_teacher') || 0), 0, TEACHER_PICK.length - 1); } catch (e) { teacherPick = 0; }
+
+/* Vorbereitung vor jedem Tag: 3 Punkte verteilen */
+const PREP_POINTS = 3;
+const PREP = [
+  { id: 'sheets', cost: 1, name: 'Blätter vorkopiert',       desc: 'Jede Stunde startet mit 4 Blättern auf dem Pult.' },
+  { id: 'board',  cost: 1, name: 'Tafelbild vorbereitet',    desc: 'Jede Stunde startet mit Gruppenarbeit an der Tafel (die Gruppen wollen gleich ihre Blätter).' },
+  { id: 'sleep',  cost: 1, name: 'Ausgeschlafen',            desc: 'Du läufst heute 15 % schneller.' },
+  { id: 'warm',   cost: 1, name: 'Kopierer vorgeheizt',      desc: 'Der Kopierer muss heute nicht aufwärmen.' },
+  { id: 'calm',   cost: 1, name: 'Ruhiger Einstieg geplant', desc: 'In den ersten 20 s jeder Stunde gibt es nur halb so viel Unruhe.' },
+  { id: 'faq',    cost: 2, name: 'Fragen vorbereitet',       desc: 'Fragen erklärst du sofort, und sie bringen 3 Lernpunkte extra.' },
+];
+const prepUsed = () => PREP.filter(p => RUN.prep[p.id]).reduce((s, p) => s + p.cost, 0);
+
+function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {} }; newDay(); }
+function newDay() { RUN.jamLesson = randInt(0, CONFIG.week.lessonsPerDay - 1); RUN.beamerUpdate = true; RUN.prep = {}; }   // 1× pro Tag Papierstau / Beamer-Update
 const has = id => !!(RUN && RUN.ch[id]);
 const upLevel = id => (RUN && RUN.up[id]) || 0;
 
@@ -426,7 +456,14 @@ const upLevel = id => (RUN && RUN.up[id]) || 0;
 function applyModifiers() {
   const base = structuredClone(BASE_CONFIG);
   for (const key of Object.keys(base)) CONFIG[key] = base[key];
+  const tp = TEACHER_PICK[RUN ? RUN.teacherPick : teacherPick] || TEACHER_PICK[0];
+  CONFIG.teacher = tp.idx;
   if (!RUN) return;
+  tp.apply(CONFIG);
+  // Vorbereitung des Tages
+  if (RUN.prep.sleep) CONFIG.player.speed *= 1.15;
+  if (RUN.prep.warm) CONFIG.copier.warmup = 0;
+  if (RUN.prep.faq) { CONFIG.events.question.explain = 0.05; CONFIG.events.question.bonus += 3; }
   const W = CONFIG.week, lvl = (RUN.week - 1) * W.days.length + RUN.day;
   const d = 1 + W.difficultyPerDay * lvl;
   CONFIG.kids.spawnInterval /= d;
@@ -520,6 +557,9 @@ function newLesson() {
     gongLeft: has('gong') ? 1 : 0, gongFx: 0,
     jamPlan: !!RUN && RUN.jamLesson === RUN.lesson && Math.random() >= 0.3 * upLevel('copier'), forecastKid: null, beamerDelay: 0,
   };
+  // Vorbereitung des Tages
+  if (RUN && RUN.prep.sheets) G.stash = Math.min(4, CONFIG.deskStashMax);
+  if (RUN && RUN.prep.board) { G.formIdx = G.formSel = 2; G.prepGroups = true; }
   // Zuspätkommer: Platz bleibt leer, später klopft es
   const late = randInt(CONFIG.door.lateMin, CONFIG.door.lateMax);
   const pool = G.kids.slice();
@@ -742,7 +782,10 @@ function finishWriting() {
   G.kids.forEach(k => { if (k.state === 'done') k.state = 'work'; });
   reward(null);
   sfx.done();
-  if (form().sheets) {                  // Gruppenarbeit: pro Gruppe (Spalte) ein Blatt
+  if (form().sheets) requestGroupSheets();
+}
+function requestGroupSheets() {          // Gruppenarbeit: pro Gruppe ein Blatt
+  {
     const groups = form().groupSheets === 2 ? [[0, 1], [2, 3]] : CONFIG.kids.cols.map((_, c) => [c]);
     groups.forEach(cs => {
       const grp = G.kids.filter(k => cs.includes(k.c) && (k.state === 'work' || k.state === 'fidget'));
@@ -974,10 +1017,12 @@ function update(dt) {
 
   helperTick();
 
+  if (G.prepGroups && G.t > 2) { G.prepGroups = false; requestGroupSheets(); }
+
   /* --- Event-Direktor: Unruhe kündigt sich an (Vorwarnung) --- */
   const writingNow = backTurned();
   const limit = (G.t < CONFIG.phases.warmupEnd ? CONFIG.warmupMaxProblems : CONFIG.maxProblems) + (writingNow ? B.writingExtraLimit : 0);
-  const mult = form().noise * (writingNow ? B.writingSpawnMult : 1) * (G.t >= CONFIG.phases.finalStart ? CONFIG.finalSpawnMult : 1);
+  const mult = form().noise * (writingNow ? B.writingSpawnMult : 1) * (G.t >= CONFIG.phases.finalStart ? CONFIG.finalSpawnMult : 1) * (RUN && RUN.prep.calm && G.t < 20 ? 0.5 : 1);
   G.spawnT -= dt * mult;
   const fidgetCands = () => G.kids.filter(k => k.state === 'work' && !inPresence(k) && k.calm <= 0);
   if (CONFIG.forecast && !G.forecastKid && G.spawnT / mult <= 3 && openProblems() < limit) { const c = fidgetCands(); if (c.length) G.forecastKid = pick(c); }
@@ -1163,8 +1208,32 @@ function showExam() {
 }
 
 // „Weiter“ auf allen Zwischenbildschirmen
+function openPrep() {
+  state = 'prep';
+  const left = PREP_POINTS - prepUsed();
+  const items = PREP.map((p, i) => {
+    const on = !!RUN.prep[p.id], can = on || p.cost <= left;
+    return `<button class="shopitem${on ? ' sel' : ''}${can ? '' : ' poor'}" data-prep="${i}">
+      <span class="k">${i + 1}</span><span class="n">${p.name}</span><span class="c">${on ? '✓' : p.cost + ' P'}</span>
+      <span class="d">${p.desc}</span></button>`;
+  }).join('');
+  showCard(`
+    <h2>Vorbereitung für ${CONFIG.week.days[RUN.day]}</h2>
+    <p>Am Abend vorher: Du hast <b style="color:var(--gold)">${left} von ${PREP_POINTS} Punkten</b> übrig. Wähle, was du vorbereitest.</p>
+    <div class="shop">${items}</div>
+    <p class="go">Los geht's (Enter)</p>`);
+}
+function togglePrep(i) {
+  const p = PREP[i]; if (!p) return;
+  if (RUN.prep[p.id]) delete RUN.prep[p.id];
+  else if (p.cost <= PREP_POINTS - prepUsed()) RUN.prep[p.id] = true;
+  else { sfx.wrong(); return; }
+  sfx.select(); openPrep();
+}
+
 function advance() {
-  if (state === 'title') { newRun(); startLesson(); return; }
+  if (state === 'title') { newRun(); openPrep(); return; }
+  if (state === 'prep') { startLesson(); return; }
   if (state === 'choice' && RUN.offer) return;                   // erst auswählen
   const next = RUN.queue.shift();
   switch (next) {
@@ -1172,8 +1241,8 @@ function advance() {
     case 'shop': openShop(); break;
     case 'choice': openChoice(); break;
     case 'exam': showExam(); break;
-    case 'nextDay': RUN.day++; RUN.lesson = 0; newDay(); startLesson(); break;
-    case 'nextWeek': RUN.week++; RUN.day = 0; RUN.lesson = 0; RUN.weekLearn = 0; newDay(); startLesson(); break;
+    case 'nextDay': RUN.day++; RUN.lesson = 0; newDay(); openPrep(); break;
+    case 'nextWeek': RUN.week++; RUN.day = 0; RUN.lesson = 0; RUN.weekLearn = 0; newDay(); openPrep(); break;
     case 'over': RUN = null; titleScreen(); break;
     default: break;
   }
@@ -1227,6 +1296,9 @@ function titleScreen() {
   showCard(`
     <h1>Klasse im Griff!</h1>
     <p>Berufsschule · Klasse IM24 (Industriemechanik) · Prototyp</p>
+    <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
+    <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
+      <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
     <p style="color:var(--ink)">Eine Woche, 2 Stunden pro Tag, am Freitag Klassenarbeit. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
     <p class="rules">
        <b style="color:#c9c6d0">Graue Blase</b>: wird unruhig. Stell dich in die Nähe oder drück E.<br>
@@ -1245,6 +1317,12 @@ function titleScreen() {
     <p class="go">Start (Enter, E oder tippen)</p>`);
 }
 
+function pickTeacher(i) {
+  teacherPick = (i + TEACHER_PICK.length) % TEACHER_PICK.length;
+  try { localStorage.setItem('kig_teacher', String(teacherPick)); } catch (e) { /* egal */ }
+  applyModifiers(); sfx.select(); titleScreen();
+}
+
 function startLesson() { applyModifiers(); newLesson(); hideCard(); state = 'play'; keys.clear(); }
 
 window.addEventListener('keydown', e => {
@@ -1256,7 +1334,17 @@ window.addEventListener('keydown', e => {
   keys.add(e.code);
   if (e.repeat) return;
   const confirm = e.code === 'Enter' || e.code === 'KeyE' || e.code === 'Space';
-  if (state === 'title' && confirm) { advance(); return; }
+  if (state === 'title') {
+    if (confirm) { advance(); return; }
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { pickTeacher(teacherPick - 1); return; }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') { pickTeacher(teacherPick + 1); return; }
+    const n = +e.key; if (n >= 1 && n <= TEACHER_PICK.length) { pickTeacher(n - 1); return; }
+  }
+  if (state === 'prep') {
+    if (e.code === 'Enter' || e.code === 'Space') { advance(); return; }
+    const n = +e.key; if (n >= 1 && n <= PREP.length) togglePrep(n - 1);
+    return;
+  }
   if (['end', 'shop', 'exam'].includes(state) && e.code === 'Enter') { advance(); return; }
   if (state === 'choice') { const n = +e.key; if (n >= 1 && n <= 3) pickChanger(n - 1); return; }
   if (state === 'shop') { const n = +e.key; if (n >= 1 && n <= 9) buy(n - 1); return; }
