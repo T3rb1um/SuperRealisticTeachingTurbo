@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Räume – Klasse im Griff!</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2b2233">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #2b2233;
+    --panel: #3d2f45;
+    --ink: #fff4e0;
+    --muted: #cdb9c9;
+    --order: #7cc47a;
+    --warn: #f2c14e;
+    --bad: #e86a5c;
+    --gold: #f2c14e;
+    --learn: #5ca7e8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font-family: "Courier New", ui-monospace, monospace; font-weight: bold; overflow: hidden; }
+  #wrap { touch-action: none; user-select: none; -webkit-user-select: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  #hud { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; justify-content: space-between;
+    background: var(--panel); padding: 6px 12px; border-radius: 6px 6px 0 0; font-size: 15px; white-space: nowrap; }
+  #hud .item { display: flex; align-items: center; gap: 8px; }
+  #bar, #lbar { width: 110px; height: 12px; background: #1e1724; border: 2px solid #1e1724; border-radius: 3px; overflow: hidden; }
+  #lbar { position: relative; }
+  #lfill { height: 100%; width: 0; background: var(--learn); }
+  #lbar .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--gold); }
+  #lstars { color: var(--gold); min-width: 3em; }
+  #barFill { height: 100%; width: 100%; background: var(--order); transition: background .2s; }
+  #game { display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+  #overlay { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(30, 22, 36, .72); }
+  #overlay.hidden, #debug.hidden { display: none; }
+  .card { background: var(--panel); border: 3px solid #1e1724; border-radius: 8px; padding: 18px 24px; max-width: 620px;
+    text-align: center; line-height: 1.45; box-shadow: 0 6px 0 #1e1724; }
+  .card h1 { margin: 0 0 6px; font-size: 26px; color: var(--gold); }
+  .card h2 { margin: 0 0 8px; font-size: 22px; }
+  .card p { margin: 6px 0; font-size: 14px; color: var(--muted); }
+  .card p.rules { text-align: left; font-size: 13px; color: var(--muted); }
+  .card { max-height: 100%; overflow-y: auto; }
+  .card .keys { font-size: 13px; color: var(--ink); }
+  .card .go { margin-top: 12px; color: var(--gold); animation: blink 1.2s steps(2) infinite; }
+  .stars { font-size: 34px; letter-spacing: 6px; color: var(--gold); }
+  .stars .off { color: #5a4a60; }
+  .loss { text-align: left; margin: 10px auto 4px; width: 370px; max-width: 100%; font-size: 13px; }
+  .loss div { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .loss span.l { width: 160px; }
+  .loss span.b { flex: 1; height: 9px; background: #1e1724; border-radius: 2px; overflow: hidden; }
+  .loss span.b i { display: block; height: 100%; background: var(--bad); }
+  .loss span.p { width: 40px; text-align: right; }
+  .test { font-size: 12px; color: var(--muted); }
+  #debug { position: absolute; right: 6px; top: 40px; background: rgba(20, 14, 26, .85); padding: 6px 9px;
+    font-size: 11px; line-height: 1.4; border-radius: 4px; pointer-events: none; white-space: pre; }
+  #hands.flash { animation: flash .5s 2; }
+  @keyframes flash { 50% { color: var(--bad); } }
+  /* Touch (Handy quer): Klassenraum im Vollbild, Kamera folgt der Lehrkraft, Bedienung liegt darüber */
+  #stick { position: fixed; z-index: 6; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%;
+    border: 3px solid rgba(255,248,236,.55); background: rgba(38,35,46,.3); pointer-events: none; }
+  #knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(255,248,236,.8); transform: translate(-50%, -50%); }
+  #pad, #stickZone, #rotate { display: none; }
+  #pad button { font: inherit; font-weight: bold; color: var(--ink); background: rgba(46,35,53,.72); border: 2px solid rgba(30,23,36,.9);
+    border-radius: 10px; touch-action: none; }
+  #pad button[hidden] { display: none; }
+  body.touch, body.touch #wrap, body.touch #pad, body.touch #pad *, body.touch #hud, body.touch canvas {
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #pad button.on { filter: brightness(1.3); transform: scale(.95); }
+  body.touch { overflow: hidden; }
+  body.touch #wrap { position: fixed; inset: 0; left: 0 !important; top: 0; transform: none; overflow: hidden; }
+  body.touch #game { position: absolute; left: 0; top: 0; }
+  body.touch #pad { display: block; }
+  #pad .top { position: fixed; z-index: 5; left: max(8px, env(safe-area-inset-left, 0px)); top: 30px; display: flex; gap: 6px; opacity: .85; }
+  #pad .top button { width: 40px; height: 32px; font-size: 13px; }
+  #pad .main { position: fixed; z-index: 5; right: max(14px, env(safe-area-inset-right, 0px)); bottom: 22vh; display: flex; flex-direction: row; align-items: flex-end; gap: 10px; }
+  #pad #btnQ, #pad #btnG { width: 62px; height: 50px; border-radius: 25px; font-size: 22px; }
+  #pad #btnE { width: 112px; height: 112px; border-radius: 50%; font-size: 38px; background: rgba(242,193,78,.82); color: #26232e; box-shadow: 0 4px 0 rgba(30,23,36,.8); }
+  body.touch #hud { position: fixed; z-index: 5; left: 0; right: 0; top: 0; width: auto !important; border-radius: 0;
+    background: rgba(30,22,36,.72); padding: 4px max(10px, env(safe-area-inset-right, 0px)) 4px max(10px, env(safe-area-inset-left, 0px));
+    font-size: 11px !important; gap: 2px 12px; flex-wrap: nowrap; }
+  body.touch #bar, body.touch #lbar { width: 64px; height: 8px; }
+  body.touch #hud .item { gap: 5px; }
+  body.touch #phase { font-size: 10px; }
+  body.touch #overlay { position: fixed; inset: 0; top: 0 !important; z-index: 20; }
+  body.touch.overlay-open #pad { display: none; }
+  body.touch, html:has(body.touch) { touch-action: none; overscroll-behavior: none; }
+  body.touch .card { touch-action: pan-y; display: flex; flex-direction: column; }
+  body.touch .card h1 { order: -2; }
+  body.touch .card .go { order: -1; align-self: center; margin: 4px 0 8px; display: inline-block; padding: 8px 18px; border: 2px solid var(--gold); border-radius: 8px; animation: none; }
+  @media (orientation: portrait) { body.touch #rotate { display: flex; position: fixed; inset: 0; z-index: 30; background: var(--bg);
+    align-items: center; justify-content: center; text-align: center; font-size: 20px; color: var(--gold); } }
+  @media (max-height: 520px) {
+    .card { padding: 10px 14px; line-height: 1.35; }
+    .card h1 { font-size: 20px; } .card h2 { font-size: 18px; }
+    .card p { font-size: 11px; margin: 3px 0; } .card p.rules { font-size: 10px; }
+    .stars { font-size: 24px; } .loss { font-size: 11px; }
+  }
+  .touch-only { display: none; }
+  body.touch .touch-only { display: block; }
+  body.touch .touch-hide { display: none; }
+  /* Woche & Shop */
+  .weekbar { height: 10px; background: #1e1724; border-radius: 3px; overflow: hidden; margin: 4px auto; max-width: 340px; }
+  .weekbar i { display: block; height: 100%; background: var(--learn); }
+  .shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; margin: 10px 0; text-align: left; }
+  .shopitem { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; gap: 1px 8px; align-items: center;
+    font: inherit; font-size: 12px; color: var(--ink); background: #2e2335; border: 2px solid #1e1724; border-radius: 6px; padding: 6px 8px; cursor: pointer; text-align: left; }
+  .shopitem:hover:not([disabled]), .shopitem:focus-visible { border-color: var(--gold); outline: none; }
+  .shopitem .k { grid-row: span 2; color: var(--gold); font-size: 14px; }
+  .shopitem .n { font-weight: bold; }
+  .shopitem .n small { color: var(--muted); font-weight: normal; }
+  .shopitem .c { color: var(--gold); white-space: nowrap; grid-column: 3; grid-row: 1; }
+  .shopitem .n { grid-column: 2; grid-row: 1; }
+  .shopitem .d { grid-column: 2 / 4; color: var(--muted); font-weight: normal; font-size: 11px; }
+  .shopitem.poor .c { color: var(--bad); }
+  .shopitem.maxed { opacity: .5; cursor: default; }
+  .shopitem.maxed .c { color: var(--order); }
+  body.touch .card .go { cursor: pointer; }
+  .card .go { cursor: pointer; }
+  .fsbtn { font: inherit; font-size: .85em; color: var(--muted); background: #2e2335; border: 2px solid #1e1724; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .fsbtn:hover, .fsbtn:focus-visible { color: var(--ink); border-color: var(--gold); outline: none; }
+  body.touch .fsbtn { display: none; }
+  #toast { position: fixed; z-index: 40; left: 50%; bottom: 14px; transform: translate(-50%, 20px); max-width: min(560px, 90vw);
+    background: rgba(30,22,36,.95); color: var(--ink); border: 2px solid var(--gold); border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; text-align: center; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .teachers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 6px 0 4px; }
+  .tpick { font: inherit; color: var(--ink); background: #2e2335; border: 2px solid #1e1724; border-radius: 6px; padding: 6px 4px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-width: 0; }
+  .tpick img { width: 60px; height: 96px; image-rendering: pixelated; }
+  .tpick b { font-size: 12px; } .tpick .tr { font-size: 11px; color: var(--gold); } .tpick .td { font-size: 10px; color: var(--muted); font-weight: normal; line-height: 1.3; }
+  .tpick.sel { border-color: var(--gold); background: #3d2f45; }
+  .tpick:hover, .tpick:focus-visible { border-color: var(--gold); outline: none; }
+  .shopitem.sel { border-color: var(--gold); background: #3d2f45; }
+  @media (max-height: 520px) { .tpick img { width: 40px; height: 64px; } .tpick .td { display: none; } }
+  .dist { display: flex; gap: 6px; justify-content: center; align-items: flex-end; height: 120px; margin: 6px 0; }
+  .dist .db { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; width: 28px; height: 100%; }
+  .dist .db i { display: block; width: 100%; border-radius: 3px 3px 0 0; }
+  .dist .db span { font-size: 12px; color: var(--muted); }
+  .grades { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 16px; text-align: left; margin: 6px auto; max-width: 480px; }
+  .grade { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .grade .gn { width: 56px; } .grade .gb { flex: 1; height: 7px; background: #1e1724; border-radius: 2px; overflow: hidden; }
+  .grade .gb i { display: block; height: 100%; background: var(--learn); } .grade .gg { width: 14px; text-align: right; font-weight: bold; }
+  .slots { display: flex; flex-direction: column; gap: 4px; margin: 4px auto 6px; max-width: 520px; }
+  .weekintro { background: #2e2335; border: 2px solid #f2c14e; border-radius: 6px; padding: 8px 10px; margin: 0 auto 8px; max-width: 560px; color: var(--ink); line-height: 1.4; }
+  .slot { display: flex; gap: 8px; align-items: center; font: inherit; font-size: 12px; color: var(--ink); background: #2e2335;
+    border: 2px solid #1e1724; border-radius: 6px; padding: 5px 8px; cursor: pointer; text-align: left; }
+  .slot:hover, .slot:focus-visible { border-color: var(--gold); outline: none; }
+  .slot .k { color: var(--gold); } .slot .sl { color: var(--muted); font-weight: normal; }
+  @keyframes blink { 50% { opacity: .35; } }
+</style>
+<style>
+  #hud, #overlay, #pad, #stick, #toast, #debug { display: none !important; }
+  #roombar { position: fixed; right: 16px; top: 8px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; z-index: 50; max-width: calc(100vw - 32px); }
+  #roombar button { font: 600 12px monospace; color: #fff8ec; background: rgba(38,35,46,.88); border: 2px solid #4a4658; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+  #roombar button.on { border-color: #f2c14e; color: #f2c14e; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="item">Ordnung <div id="bar"><div id="barFill"></div></div><span id="orderNum">100</span></div>
+    <div class="item">Lernen <div id="lbar"><div id="lfill"></div><i class="tick" id="tick0"></i><i class="tick" id="tick1"></i><i class="tick" id="tick2"></i></div><span id="learnNum">0</span><span id="lstars"></span></div>
+    <div class="item">Uhr <span id="clock">0:60</span> <span id="phase" style="color:var(--muted)"></span></div>
+    <div class="item">Taler <span id="taler" style="color:var(--gold)">0</span></div>
+    <div class="item">Hände: <span id="hands">leer</span></div>
+    <button id="fsBtn" class="fsbtn" title="Vollbild (F)">Vollbild [F]</button>
+  </div>
+  <canvas id="game" width="768" height="432"></canvas>
+  <div id="overlay"><div class="card" id="card"></div></div>
+  <div id="debug" class="hidden"></div>
+</div>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <div id="pad">
+    <div class="top"><button id="btnP" aria-label="Pause">II</button><button id="btnM" aria-label="Musik an/aus">♪</button><button id="btnF" aria-label="Vollbild">[ ]</button><button id="btnZ" aria-label="Ansicht: ganzer Raum oder nah dran">+</button></div>
+    <div class="main"><button id="btnG" aria-label="Klangschale" hidden>G</button><button id="btnQ" aria-label="Arbeitsform wechseln">Q</button><button id="btnE" aria-label="Interagieren">E</button></div>
+  </div>
+  <div id="toast" role="status"></div>
+  <div id="rotate"><div>Bitte das Handy<br>quer halten</div></div>
+<script src="game.js"></script>
+<script src="render.js"></script>
+<script src="rooms.js"></script>
+</body>
+</html>
