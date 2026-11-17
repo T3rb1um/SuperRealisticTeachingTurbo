@@ -118,6 +118,20 @@ const CONFIG = {
     },
   },
   clip: { carry: [0, 2, 4, 99], slow: 0.9 },
+  // Praxishalle
+  hall: {
+    freshTime: 40,             // so lange bleibt eine Station spannend (dann Rotation ansagen)
+    seat: 1.0,                 // Lernen an der Station
+    boredSpawn: 0.8,           // bis zu +80 % Unruhe an langweiligen Stationen
+    check: { firstAt: 10, every: 11, patience: 22, hold: 1.2, bonus: 4 },        // Abnahme
+    mat:   { firstAt: 14, every: 20, patience: 18, carry: 3 },                    // Material vom Werkzeugwagen
+    psa:   { firstAt: 20, every: 30, patience: 12, orderHit: 4 },                 // Schutzbrille vergessen
+    leak:  { chance: 0.6, from: 20, to: 60, slipAfter: 18, slipEvery: 14, orderHit: 8, clean: 1.4 },   // Ölfleck
+    motor: { chance: 0.6, from: 15, to: 70, drain: 0.6, spawn: 1.4 },            // Motor läuft laut
+    climb: { chance: 0.5, from: 25, to: 75, warn: 2.5, drain: 1.2, orderHit: 5 }, // Radlader klettern
+    wc:    { awayMin: 8, awayMax: 12 },
+    sheetMult: 2.5,
+  },
   // SPS-Labor
   lab: {
     pc:   { firstAt: 14, every: 26, jitter: 0.4, patience: 14, hold: 1.5 },        // PC hängt → am Platz E halten
@@ -160,8 +174,8 @@ const CONFIG = {
     block: [
       { name: 'Ankommen',      exam: 'Test',            news: 'Jeden Tag kommt etwas Neues dazu.', doors: 0.8, phones: true },
       { name: 'Alltag',        exam: 'Klassenarbeit',   news: 'Neu: Besuch an der Tür (Störenfried, Kollegen mit Fragen und Neuigkeiten) und Handys.', doors: 0.8, phones: true },
-      { name: 'Stress',        exam: 'Klassenarbeit',   news: 'Neu: Der Ausbilder schaut jeden Tag einmal vorbei. Jede Stunde klopft jemand.', doors: 1, phones: true, trainerDaily: true },
-      { name: 'Prüfungswoche', exam: 'Zwischenprüfung', news: 'Die Klasse ist nervös (mehr Unruhe) und es gibt 25 % weniger Taler. Freitag: Zwischenprüfung!', doors: 0.8, phones: true, nervous: 1.12, taler: 0.75 },
+      { name: 'Praxishalle',   exam: 'Klassenarbeit',   news: 'Neu: Praxishalle! Stationsarbeit mit Rotation (mobile Tafel), Abnahmen, Material vom Werkzeugwagen. Der Ausbilder kommt täglich.', doors: 0.8, phones: true, trainerDaily: true },
+      { name: 'Prüfungswoche', exam: 'Zwischenprüfung', news: 'Im SPS-Labor. Die Klasse ist nervös (mehr Unruhe) und es gibt 25 % weniger Taler. Freitag: Zwischenprüfung!', doors: 0.8, phones: true, nervous: 1.12, taler: 0.75 },
     ],
     examQuestionSoothes: 3,     // Klassenarbeit: so oft (spürbar, ≥ 1/3) vertrösten, dann gibt der Azubi auf
     printerNoise: { drain: 0.4, cheatMult: 1.5, offHold: 3 },   // Netzwerkdrucker brummt in der Klassenarbeit            // Klassenarbeit mit Note 3 oder besser: noch ein Game-Changer
@@ -224,7 +238,8 @@ const CHANGERS = [
 ];
 
 /* ---------------------------------------------------------------- Basis */
-const T = 32, RW = 20, RH = 10, OX = 64, OY = 96, WALL_H = 80, SW = 768, SH = 432;
+const T = 32, OX = 64, OY = 96, WALL_H = 80, SW = 768, SH = 432;
+let RW = 20, RH = 10;                                   // Raumgröße in Feldern (die Praxishalle ist größer)
 const U = T / 16;   // Pixel-Maßstab gegenüber dem alten 16-px-Raster
 
 const cv = document.getElementById('game');
@@ -709,6 +724,11 @@ function applyModifiers() {
   if (has('seating')) { CONFIG.kids.noSpread = true; CONFIG.forms[1].learn *= 0.85; }
   if (has('light')) CONFIG.forecast = true;
   if (has('tables')) { CONFIG.forms[2].groupSheets = 2; CONFIG.forms[2].noise += 0.2; }
+  if (isHall()) {                                             // Praxishalle: mobile Tafel = Rotation ansagen
+    CONFIG.board.beamer = true;
+    CONFIG.forms.forEach(f => Object.assign(f, { write: 1.0 * Math.pow(0.8, upLevel('chalk')), learn: 1, noise: 1, sheets: false, groupSheets: 0, label: 'Stationsarbeit' }));
+    CONFIG.copier.requestInterval *= CONFIG.hall.sheetMult; CONFIG.copier.firstRequestAt *= 2;
+  }
   if (isLab()) {                                              // SPS-Labor: Beamer statt Tafel, Aufgaben statt Arbeitsformen
     CONFIG.board.beamer = true;
     CONFIG.lab.levels.forEach((lv, i) => Object.assign(CONFIG.forms[i], { name: lv.name, label: lv.label, write: CONFIG.lab.switchWrite, learn: lv.seat, noise: lv.noise, sheets: false, groupSheets: 0 }));
@@ -741,6 +761,7 @@ const LOOKS = [
 
 function makeKids() {
   if (typeof isLab === 'function' && isLab()) return makeLabKids();
+  if (typeof isHall === 'function' && isHall()) return makeHallKids();
   const kids = [];
   const K = CONFIG.kids;
   K.rows.forEach((dy, r) => K.cols.forEach((cx, c) => {
@@ -783,10 +804,11 @@ function newLesson() {
   };
   // Vorbereitung des Tages
   if (prepOn('sheets')) G.stash = Math.min(2, CONFIG.deskStashMax);
-  if (prepOn('board') && RUN.lesson === 0 && !G.exam) { G.formIdx = G.formSel = 2; G.prepGroups = !isLab(); }
+  if (prepOn('board') && RUN.lesson === 0 && !G.exam) { G.formIdx = G.formSel = isHall() ? 1 : 2; G.prepGroups = !usesNav(); }
   if (G.exam) { G.subject = EXAM_SUBJECT; G.formIdx = G.formSel = 0; }
   if (typeof RD === 'function') { G.p.x = RD().start.x; G.p.y = RD().start.y; }
   if (isLab()) labInitLesson();
+  if (isHall()) hallInitLesson();
   const DE = CONFIG.doorEvents;
   G.npc = null; G.npcProg = 0; G.tutor = null; G.trainerAt = null; G.heatT = 0;
   G.doorEvAt = RUN && !G.exam && (RUN.week > 1 || RUN.day >= 2) && Math.random() < blk().doors ? rand(DE.from, DE.to) : null;   // Tür ab Mittwoch
@@ -825,7 +847,7 @@ const isSeated = k => !['away', 'knock', 'walk'].includes(k.state);
 const presenceOn = () => !G.writing || !!CONFIG.board.beamer;
 const backTurned = () => G.writing && !CONFIG.board.beamer;   // Rücken zur Klasse
 const inPresence = k => presenceOn() && Math.hypot(G.p.x - k.x, G.p.y - (k.y - 0.4)) <= CONFIG.presence.radius;
-const inBoardZone = () => G.p.y < BOARD.zoneY && G.p.x > BOARD.x0 && G.p.x < BOARD.x1;
+const inBoardZone = () => G.p.y < BOARD.zoneY && G.p.y > (BOARD.y0 || -1) && G.p.x > BOARD.x0 && G.p.x < BOARD.x1;
 const inDoorZone = () => G.p.y > DOOR.zoneY && G.p.x > DOOR.x0 && G.p.x < DOOR.x1;
 const inDoor2Zone = () => { const d = RD().door2; return !!d && G.p.y < d.zoneY && G.p.x > d.x0 && G.p.x < d.x1; };
 const knocksAt = n => G.kids.some(k => k.state === 'knock' && (k.door || 0) === n);
@@ -837,7 +859,7 @@ function npcNear() {
   return Math.hypot(G.p.x - n.x, G.p.y - n.y) <= 1.7 ? n : null;
 }
 function openProblems() {
-  return G.kids.filter(k => ['fidget', 'idle', 'loud', 'wait', 'knock', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc'].includes(k.state)).length + (G.supply <= 0 && !CONFIG.board.review ? 1 : 0);
+  return G.kids.filter(k => ['fidget', 'idle', 'loud', 'wait', 'knock', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc', 'mat', 'psa', 'climb', 'wcq', 'leak'].includes(k.state)).length + (G.supply <= 0 && !CONFIG.board.review ? 1 : 0);
 }
 function phaseName() {
   if (G.t < CONFIG.phases.warmupEnd) return 'Einstieg';
@@ -846,7 +868,7 @@ function phaseName() {
 }
 
 function currentTarget() {
-  const lt = labTarget(); if (lt) return lt;                 // Labor: Roboter, Netzwerk, Anlage gehen vor
+  const lt = labTarget() || hallTarget(); if (lt) return lt;  // Labor/Halle: Stationen gehen vor
   if (inBoardZone()) return { type: 'board' };
   const nn = npcNear();
   if (nn && nn.kind === 'intruder') return { type: 'npc' };
@@ -860,7 +882,7 @@ function currentTarget() {
     if (!isSeated(k)) continue;
     const d = distToBlock(G.p.x, G.p.y, k.block);
     if (d > CONFIG.player.reach) continue;
-    const prio = k.state === 'wait' ? (G.carry > 0 ? 20 : 5) : (k.state === 'phone' || k.state === 'phoneSoon') ? 15 : k.state === 'cheat' ? 12 : (isProblem(k) || ['wc', 'pc', 'plc'].includes(k.state)) ? 10 : k.state === 'test' ? 7 : (k.state === 'fidget' || k.state === 'question') ? 8 : 0;
+    const prio = k.state === 'wait' ? (G.carry > 0 ? 20 : 5) : (k.state === 'phone' || k.state === 'phoneSoon') ? 15 : k.state === 'cheat' ? 12 : (isProblem(k) || ['wc', 'pc', 'plc', 'mat', 'psa', 'climb', 'climbSoon', 'check', 'wcq'].includes(k.state)) ? 10 : k.state === 'test' ? 7 : (k.state === 'fidget' || k.state === 'question') ? 8 : 0;
     if (d - prio < bs) { bs = d - prio; best = k; }
   }
   return best ? { type: 'kid', kid: best } : null;
@@ -887,7 +909,7 @@ function voiceCalm(k) {                       // Upgrade „Klare Ansage“: Nac
 }
 function makeIdle(k) { k.state = 'idle'; k.t = 0; k.spreadT = 0; }
 function backToWork(k, calm) {
-  k.state = G.supply <= 0 && !CONFIG.board.review ? 'done' : 'work'; k.t = 0; k.pres = 0; k.spreadT = 0; k.calm = calm;
+  k.state = G.supply <= 0 && !CONFIG.board.review && !isHall() ? 'done' : 'work'; k.t = 0; k.pres = 0; k.spreadT = 0; k.calm = calm;
   if (k.needsSheet && !G.exam) k.state = 'wait';                  // will immer noch sein Blatt
   if (isLab() && G.netDown && k.state !== 'wait') k.state = 'net';  // ohne Netzwerk geht am PC nichts
 }
@@ -911,7 +933,8 @@ function sendToWC(k) {
   k.needsWC = false; k.state = 'walk'; k.leaving = true;
   k.wx = k.x; k.wy = k.y;
   const ax = k.cx + 2;
-  k.path = isLab() ? findPath(k.x, k.y, DOOR.cx, 9.8) : [{ x: ax, y: k.y }, { x: ax, y: 9.1 }, { x: DOOR.cx, y: 9.8 }];
+  if (isHall()) return hallSendToWC(k);
+  k.path = usesNav() ? findPath(k.x, k.y, DOOR.cx, RH - 0.2) : [{ x: ax, y: k.y }, { x: ax, y: 9.1 }, { x: DOOR.cx, y: 9.8 }];
   reward(k); sfx.calm();
 }
 // Pult: E tippen = mit Blättern alles ablegen, ohne Blätter 1 nehmen. E halten = Blatt für Blatt aufnehmen.
@@ -943,9 +966,9 @@ function letIn(auto, door) {
   const knocking = G.kids.filter(k => k.state === 'knock' && (door === undefined || (k.door || 0) === door));
   knocking.forEach((k, n) => {
     k.state = 'walk';
-    if (isLab()) {
+    if (usesNav()) {
       const d2 = (k.door || 0) === 1 ? RD().door2 : null;
-      k.wx = d2 ? d2.cx : DOOR.cx + n * 0.5; k.wy = d2 ? d2.cy : 9.75;
+      k.wx = d2 ? d2.cx : DOOR.cx + n * 0.5; k.wy = d2 ? d2.cy : RH - 0.25;
       k.path = findPath(k.wx, k.wy, k.x, k.y);
     } else {
       const ax = k.cx + 2;
@@ -961,7 +984,7 @@ function letIn(auto, door) {
 function tap() {
   const tg = currentTarget();
   if (!tg) return;
-  if (labTap(tg)) return;
+  if (labTap(tg) || hallTap(tg)) return;
   if (tg.type === 'door2') { letIn(false, 1); return; }
   if (tg.type === 'board') { if (G.carry > clipCap()) handsFull(); return; }
   if (tg.type === 'door') { letIn(false, 0); return; }
@@ -986,7 +1009,7 @@ function tap() {
   }
   if (k.state === 'cheat') { backToWork(k, 3); reward(k); float(sx(k.x), sy(k.y) - 80, 'ERWISCHT', PAL.orange); sfx.scold(); return; }
   if (k.state === 'question') {
-    if ((has('tutor') || isLab()) && !G.exam) { G.tutor = { k, t: 0 }; return; }   // im Labor immer am Platz klärbar        // Lernbegleitung: halten = am Platz erklären, tippen = vertrösten
+    if ((has('tutor') || usesNav()) && !G.exam) { G.tutor = { k, t: 0 }; return; }   // im Labor immer am Platz klärbar        // Lernbegleitung: halten = am Platz erklären, tippen = vertrösten
     const gain = Math.min(k.t, CONFIG.events.question.soothe);
     k.t -= gain;
     if (G.exam && gain >= CONFIG.events.question.patience / 3 && (k.qs = (k.qs || 0) + 1) >= CONFIG.week.examQuestionSoothes) {   // Klassenarbeit: gibt auf
@@ -1031,16 +1054,16 @@ function helperTick() {
   h.state = 'walk'; h.wx = h.x; h.wy = h.y;
   if (fromCopier) {                                              // Klassensprecher+: holt aus dem Kopierer
     h.job = { kind: 'helper', stage: 'copy', target, has: false };
-    h.path = isLab() ? findPath(h.x, h.y, COPY_SPOT.x, COPY_SPOT.y) : [{ x: aisleX(h), y: h.y }, { x: aisleX(h), y: LANE_Y }, { ...COPY_SPOT }];
+    h.path = usesNav() ? findPath(h.x, h.y, COPY_SPOT.x, COPY_SPOT.y) : [{ x: aisleX(h), y: h.y }, { x: aisleX(h), y: LANE_Y }, { ...COPY_SPOT }];
   } else {
     h.job = { kind: 'helper', stage: 'pult', target, has: false };
-    h.path = isLab() ? findPath(h.x, h.y, RD().deskAt.ax, 1.25) : [{ x: h.cx - 2, y: h.y }, { x: h.cx - 2, y: 2.1 }, { x: 3.0, y: 2.0 }];
+    h.path = usesNav() ? findPath(h.x, h.y, RD().deskAt.ax, 1.25) : [{ x: h.cx - 2, y: h.y }, { x: h.cx - 2, y: 2.1 }, { x: 3.0, y: 2.0 }];
   }
 }
 function jobArrive(h) { if (h.job.kind === 'tech') techArrive(h); else if (h.job.kind === 'test' || h.job.kind === 'checker') labJobArrive(h); else helperArrive(h); }
 function helperArrive(h) {
   const j = h.job, ax = h.cx - 2;
-  if (isLab()) return helperArriveLab(h);
+  if (usesNav()) return helperArriveLab(h);
   const home = () => { j.stage = 'home'; h.path.push({ x: ax, y: 2.1 }, { x: ax, y: h.y }, { x: h.cx, y: h.y }); };
   if (j.stage === 'copy') {
     const C = G.copier;
@@ -1085,12 +1108,12 @@ function techCall() {
   if (!h) return;
   h.job = { kind: 'tech', stage: 'copier', t: 0 };
   h.state = 'walk'; h.wx = h.x; h.wy = h.y;
-  h.path = isLab() ? findPath(h.x, h.y, COPY_SPOT.x, COPY_SPOT.y) : [{ x: aisleX(h), y: h.y }, { x: aisleX(h), y: LANE_Y }, { ...COPY_SPOT }];
+  h.path = usesNav() ? findPath(h.x, h.y, COPY_SPOT.x, COPY_SPOT.y) : [{ x: aisleX(h), y: h.y }, { x: aisleX(h), y: LANE_Y }, { ...COPY_SPOT }];
   float(sx(h.x), sy(h.y) - 70, 'ICH MACH DAS', '#9fd3f0');
 }
 function techHome(h) {
   h.job.stage = 'home';
-  h.path = isLab() ? findPath(h.wx, h.wy, h.x, h.y) : [{ x: aisleX(h), y: LANE_Y }, { x: aisleX(h), y: h.y }, { x: h.cx, y: h.y }];
+  h.path = usesNav() ? findPath(h.wx, h.wy, h.x, h.y) : [{ x: aisleX(h), y: LANE_Y }, { x: aisleX(h), y: h.y }, { x: h.cx, y: h.y }];
   const nb = spreadNeighbors(h).filter(o => o.state === 'work');   // um ihn herum wird es kurz unruhig
   if (nb.length) { const o = pick(nb); o.state = 'fidget'; o.t = 0; o.pres = 0; }
 }
@@ -1121,19 +1144,19 @@ function npcSpawn(kind, news) {
   const DE = CONFIG.doorEvents, colleagues = [0, 1, 2, 3, 4].filter(i => i !== CONFIG.teacher);
   G.npc = {
     kind, news, look: kind === 'intruder' ? 'teen' : kind === 'trainer' ? 'trainer' : pick(colleagues),
-    x: DOOR.cx, y: 10.2, path: [], t: 0, walk: 0, face: 'up', moving: false, listened: false,
+    x: DOOR.cx, y: RH + 0.2, path: [], t: 0, walk: 0, face: 'up', moving: false, listened: false,
     stage: kind === 'intruder' ? 'in' : 'knock',
   };
   const n = G.npc;
   if (kind === 'intruder') {                        // Tür wird aufgerissen: wer draußen klopft, kommt mit rein
-    n.path = [{ x: DOOR.cx, y: 9.25 }];
+    n.path = [{ x: DOOR.cx, y: RH - 0.75 }];
     G.doorOpen = 1.5; sfx.door(); sfx.loud();
     letIn(true);
     for (const k of G.kids) if (k.state === 'work' && Math.hypot(k.x - DOOR.cx, k.y - RH) <= DE.intruder.radius) { k.state = 'fidget'; k.t = 0; k.pres = 0; }
   } else n.knockT = 0;
 }
 function npcLeave(n) {
-  n.stage = 'out'; n.path = [{ x: DOOR.cx, y: 9.3 }, { x: DOOR.cx, y: 10.3 }];
+  n.stage = 'out'; n.path = [{ x: DOOR.cx, y: RH - 0.7 }, { x: DOOR.cx, y: RH + 0.3 }];
   G.doorOpen = 1.2;
 }
 function npcArrived(n) {                            // am Ziel angekommen
@@ -1195,7 +1218,7 @@ function npcTick(dt, hold) {
     if (n.t >= DE.knockTime) {
       n.stage = 'in'; n.t = 0; G.doorOpen = 1.2; sfx.door();
       n.path = n.kind === 'news' && n.news === 'copier'
-        ? (isLab() ? findPath(DOOR.cx, 9.25, COPY_SPOT.x + 0.2, COPY_SPOT.y) : [{ x: DOOR.cx, y: LANE_Y }, { ...COPY_SPOT, x: COPY_SPOT.x + 0.2 }]) : [{ x: DOOR.cx, y: 9.25 }];
+        ? (usesNav() ? findPath(DOOR.cx, RH - 0.75, COPY_SPOT.x + 0.2, COPY_SPOT.y) : [{ x: DOOR.cx, y: LANE_Y }, { ...COPY_SPOT, x: COPY_SPOT.x + 0.2 }]) : [{ x: DOOR.cx, y: RH - 0.75 }];
       if (n.kind === 'news' && n.news === 'copier') n.stage = 'toCopier';
     }
     return;
@@ -1211,7 +1234,7 @@ function npcTick(dt, hold) {
   }
   n.t += dt;
   if (n.stage === 'copying') {
-    if (!(G.copier.busy > 0)) { n.stage = 'out'; n.path = isLab() ? [...findPath(n.x, n.y, DOOR.cx, 9.3), { x: DOOR.cx, y: 10.3 }] : [{ x: COPY_SPOT.x + 0.2, y: LANE_Y }, { x: DOOR.cx, y: LANE_Y }, { x: DOOR.cx, y: 10.3 }]; }
+    if (!(G.copier.busy > 0)) { n.stage = 'out'; n.path = usesNav() ? [...findPath(n.x, n.y, DOOR.cx, RH - 0.7), { x: DOOR.cx, y: RH + 0.3 }] : [{ x: COPY_SPOT.x + 0.2, y: LANE_Y }, { x: DOOR.cx, y: LANE_Y }, { x: DOOR.cx, y: 10.3 }]; }
     return;
   }
   if (n.stage !== 'stay') return;
@@ -1253,13 +1276,14 @@ function useGong() {
 }
 
 function selectForm(i) {
-  if (G.writing) return;
+  if (G.writing || isHall()) return;
   G.formSel = (i + CONFIG.forms.length) % CONFIG.forms.length;
   if (!inBoardZone()) G.formFx = 1.6;                 // Denkblase über der Lehrkraft
   sfx.select();
 }
 
 function finishWriting() {
+  if (isHall()) { hallRotate(); return; }
   if (isLab()) {                                     // Beamer: nur Schwierigkeit umschalten, dann kurz laden
     G.formIdx = G.formSel; G.writeProg = 0; G.writing = false; G.needRelease = true; G.nextSubject = null;
     G.subject = pick(teacherSubjects()); G.labPause = CONFIG.lab.switchPause; sfx.done();
@@ -1318,7 +1342,7 @@ function update(dt) {
       if (G.tutor.t < 0.25 && k.state === 'question') { k.t = Math.max(0, k.t - E.question.soothe); float(sx(k.x), sy(k.y) - 80, 'GLEICH!', '#9fd39a'); sfx.calm(); }   // nur getippt = vertrösten
       G.tutor = null;
     } else if ((G.tutor.t += dt) >= CONFIG.tutor.hold * E.question.explain) {
-      const b = Math.round(E.question.bonus * (isLab() ? 1 : CONFIG.tutor.share));
+      const b = Math.round(E.question.bonus * (usesNav() ? 1 : CONFIG.tutor.share));
       backToWork(k, 2); G.learn += b; k.learn = (k.learn || 0) + b / 12;
       G.taler += CONFIG.taler.perTask;
       float(sx(k.x), sy(k.y) - 68, '+' + b, '#9fd39a'); puff(sx(k.x), sy(k.y) - 52, '#9fd39a', 6); sfx.done();
@@ -1329,6 +1353,7 @@ function update(dt) {
   /* --- Tür-Ereignisse --- */
   npcTick(dt, hold);
   if (isLab()) labFixHold(0, hold);
+  if (isHall()) hallHoldTick(0, hold);
 
   /* --- Netzwerkdrucker in der Klassenarbeit: brummt, bis man ihn ausschaltet --- */
   if (G.printerOff) {
@@ -1341,7 +1366,7 @@ function update(dt) {
   if (G.printerOn) { G.copier.shake = Math.max(G.copier.shake, 0.05); if (Math.random() < dt * 0.8) sfx.print(); }
 
   /* --- Tafel schreiben (E halten) --- */
-  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
+  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isHall() ? G.supply < 95 && !G.rotating : isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
   if (hold && canWrite) {
     if (!G.writing && G.writeProg === 0) {
       G.nextSubject = pick(teacherSubjects().filter(s => s !== G.subject));
@@ -1407,7 +1432,7 @@ function update(dt) {
   if (keys.has('KeyS') || keys.has('ArrowDown')) my += 1;
   P.moving = false;
   if (touch.active) { mx = touch.x; my = touch.y; }
-  if (!G.writing && !G.give && !G.grab && !G.explaining && !G.deskHold && !G.tutor && !G.printerOff && !G.labHold && !(G.npcProg > 0) && (mx || my)) {
+  if (!G.writing && !G.give && !G.grab && !G.explaining && !G.deskHold && !G.tutor && !G.printerOff && !G.labHold && !G.hallHold && !(G.npcProg > 0) && (mx || my)) {
     const l = Math.hypot(mx, my), v = CONFIG.player.speed * dt * (G.t < 20 && CONFIG.player.coffee ? 1 + CONFIG.player.coffee : 1);
     const nx = P.x + mx / l * v, ny = P.y + my / l * v, A = CONFIG.player.cornerAssist;
     const offs = [0.1, 0.2, 0.3, A].flatMap(o => [o, -o]);
@@ -1427,6 +1452,7 @@ function update(dt) {
   const present = G.kids.filter(isSeated).length || 1;
   const working = G.kids.filter(k => k.state === 'work' || k.state === 'fidget').length;
   if (G.exam) { /* Klassenarbeit: keine Tafel */ }
+  else if (isHall()) G.supply = Math.max(0, G.supply - dt * 100 / CONFIG.hall.freshTime);   // Stationen werden langweilig
   else if (isLab()) { G.supply = 100; G.labPause = Math.max(0, (G.labPause || 0) - dt); }   // Labor: kein Aufgabenvorrat
   else if (G.supply > 0) {
     G.supply -= working / present * 100 / form().duration * dt;
@@ -1510,7 +1536,7 @@ function update(dt) {
         if ((k.ringT -= dt) <= 0) { sfx.ring(); k.ringT = 1.2; }
         break;
       case 'away':
-        if (G.t >= k.arriveAt) { k.state = 'knock'; k.t = 0; k.knockT = 0; }
+        if (G.t >= k.arriveAt) { if (k.inWC) { hallBackFromWC(k); break; } k.state = 'knock'; k.t = 0; k.knockT = 0; }
         break;
       case 'knock': {
         k.t += dt;
@@ -1520,13 +1546,15 @@ function update(dt) {
         break;
       }
       case 'walk': {
-        if (!k.path.length) { if (k.job && k.job.stage === 'fix') techFixTick(k, dt); else if (k.job && (k.job.stage === 'run' || k.job.stage === 'stay')) { /* testet bzw. prüft an der Anlage */ } else if (k.job) jobArrive(k); else backToWork(k, 2); break; }
+        if (!k.path.length) { if (k.hallMove) { hallArrive(k); break; } if (k.job && k.job.stage === 'fix') techFixTick(k, dt); else if (k.job && (k.job.stage === 'run' || k.job.stage === 'stay')) { /* testet bzw. prüft an der Anlage */ } else if (k.job) jobArrive(k); else backToWork(k, 2); break; }
         const wp = k.path[0];
         const dx = wp.x - k.wx, dy = wp.y - k.wy, d = Math.hypot(dx, dy), v = DR.walkSpeed * dt;
         if (d <= v) {
           k.wx = wp.x; k.wy = wp.y; k.path.shift();
           if (!k.path.length) {
-            if (k.job) jobArrive(k);
+            if (k.hallMove) hallArrive(k);
+            else if (k.job) jobArrive(k);
+            else if (k.leaving && isHall()) hallEnterWC(k);
             else if (k.leaving) { k.leaving = false; k.state = 'away'; k.arriveAt = G.t + rand(E.wc.awayMin, E.wc.awayMax); G.doorOpen = 0.8; sfx.door(); }
             else {
               backToWork(k, 2);
@@ -1551,7 +1579,7 @@ function update(dt) {
   /* --- Event-Direktor: Unruhe kündigt sich an (Vorwarnung) --- */
   const writingNow = backTurned();
   const limit = (G.t < CONFIG.phases.warmupEnd ? CONFIG.warmupMaxProblems : CONFIG.maxProblems) + (writingNow ? B.writingExtraLimit : 0);
-  const mult = form().noise * (writingNow ? B.writingSpawnMult : 1) * (G.t >= CONFIG.phases.finalStart ? CONFIG.finalSpawnMult : 1) * (prepOn('calm') && G.t < 15 ? 0.7 : 1) * (G.heatT > 0 ? CONFIG.doorEvents.news.heatSpawn : 1);
+  const mult = form().noise * (writingNow ? B.writingSpawnMult : 1) * (G.t >= CONFIG.phases.finalStart ? CONFIG.finalSpawnMult : 1) * (prepOn('calm') && G.t < 15 ? 0.7 : 1) * (G.heatT > 0 ? CONFIG.doorEvents.news.heatSpawn : 1) * (isHall() ? hallSpawnMult() : 1);
   G.spawnT -= dt * mult;
   const fidgetCands = () => G.kids.filter(k => k.state === 'work' && !inPresence(k) && k.calm <= 0);
   if (CONFIG.forecast && !G.forecastKid && G.spawnT / mult <= 3 && openProblems() < limit) { const c = fidgetCands(); if (c.length) G.forecastKid = pick(c); }
@@ -1595,11 +1623,12 @@ function update(dt) {
   }
   G.laughT = Math.max(0, G.laughT - dt);
   if (isLab()) labTick(dt, hold, limit);
+  if (isHall()) hallTick(dt, hold, limit);
 
   /* --- Ordnung --- */
   const D = CONFIG.order.drain;
   const cnt = s => G.kids.filter(k => k.state === s).length;
-  const dS = cnt('idle') * D.idle + cnt('loud') * D.loud + cnt('phone') * E.phone.drain + labDrain();
+  const dS = cnt('idle') * D.idle + cnt('loud') * D.loud + cnt('phone') * E.phone.drain + labDrain() + hallDrain();
   const dT = G.supply <= 0 && !CONFIG.board.review ? D.boardEmpty : 0;
   const dK = cnt('wait') * D.waiting;
   const dD = G.kids.filter(k => k.state === 'knock').reduce((s, k) => s + (k.t > DR.patience ? D.knockLoud : D.knock), 0) + cnt('wc') * D.waiting + (G.npcDrain || 0);
@@ -1613,7 +1642,7 @@ function update(dt) {
 
   /* --- Lernfortschritt --- */
   const L = CONFIG.learning;
-  const quality = Math.min(1, G.order / L.fullAt) * (G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
+  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat * (0.15 + 0.85 * G.supply / 100) : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
   const learners = G.laughT > 0 || G.exam ? [] : G.kids.filter(k => k.state === 'work' || k.state === 'fidget');
   for (const k of learners) k.learn = (k.learn || 0) + L.perKid * form().learn * quality * pairMult(k) * dt;      // eigener Lernstand
   if (G.exam) for (const k of G.kids) {                                                          // Klassenarbeit: Konzentration
@@ -1894,7 +1923,7 @@ function updateHud() {
   $('lstars').textContent = '★'.repeat(LS.filter(v => G.learn >= v).length);
   $('taler').textContent = (RUN ? RUN.taler : 0) + G.taler;
   $('btnG').hidden = !G.gongLeft;
-  $('hands').textContent = G.carry ? `Blätter ×${G.carry}` : G.writing ? 'Kreide' : 'leer';
+  $('hands').textContent = [G.carry ? `Blätter ×${G.carry}` : '', G.mats ? `Teile ×${G.mats}` : '', G.binder ? 'Bindemittel' : ''].filter(Boolean).join(' · ') || (G.writing ? (isHall() ? 'Ansage' : 'Kreide') : 'leer');
 
   const dbg = $('debug');
   dbg.classList.toggle('hidden', !debug);
@@ -1956,7 +1985,8 @@ function rulesHtml() {
        <b style="color:#b07ce8">Handy</b> vibriert: schnell hin und E. Klingelt es schon: E halten.<br>
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.<br>
        <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
-       <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).</p>
+       <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).<br>
+       <b style="color:#f2c14e">Praxishalle</b>: 6 Gruppen an Stationen. Stationen werden langweilig (Balken auf der mobilen Tafel) → an der Tafel E halten = Rotation ansagen. <b style="color:#9fd39a">OK?</b> = Abnahme: beim Azubi E halten (Lernbonus). Werkzeug-Symbol = Teil vom Werkzeugwagen holen und bringen. Brille = Schutzbrille vergessen, E. Ölfleck: Bindemittel im Hochregal holen, dann E halten. LAUT: Motor abstellen. Radlader-Kletterer: E. Nur ein WC (im Büro).</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>`;
 }
@@ -2051,11 +2081,12 @@ const VIEW = { x0: OX - 16, x1: OX + RW * T + 16, y0: OY - WALL_H - 8, y1: SH };
 function updateCamera(k) {
   if (!isTouchDevice || !G) return;
   const s = cam.s, hudH = 22;
+  const hc = typeof hallCam !== 'undefined' && isHall() ? hallCam : { x: 0, y: 0 };   // Halle: Bild ist schon mitgeschwenkt
   const vw = (VIEW.x1 - VIEW.x0) * s, vh = (VIEW.y1 - VIEW.y0) * s;
   const tx = vw <= innerWidth ? (innerWidth - vw) / 2 - VIEW.x0 * s
-    : clamp(innerWidth / 2 - sx(G.p.x) * s, innerWidth - VIEW.x1 * s, -VIEW.x0 * s);
+    : clamp(innerWidth / 2 - (sx(G.p.x) - hc.x) * s, innerWidth - VIEW.x1 * s, -VIEW.x0 * s);
   const ty = vh <= innerHeight - hudH ? hudH + (innerHeight - hudH - vh) / 2 - VIEW.y0 * s
-    : clamp(innerHeight / 2 - (sy(G.p.y) - 30) * s, innerHeight - VIEW.y1 * s, hudH - VIEW.y0 * s);
+    : clamp(innerHeight / 2 - (sy(G.p.y) - hc.y - 30) * s, innerHeight - VIEW.y1 * s, hudH - VIEW.y0 * s);
   cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
   cv.style.transform = `translate(${Math.round(cam.x)}px, ${Math.round(cam.y)}px)`;
 }

@@ -1013,7 +1013,7 @@ function drawTeacherFigure(T0, X, Y, o) {
 function drawTeacher() {
   const P = G.p, T0 = TEACHERS[CONFIG.teacher || 0] || TEACHERS[0];
   drawTeacherFigure(T0, sx(P.x), sy(P.y), {
-    face: P.face, moving: P.moving, walk: P.walk, writing: G.writing, explaining: G.explaining || !!(G.labHold && G.labHold.kind === 'help') || !!G.tutor, carry: G.carry, give: G.give,
+    face: P.face, moving: P.moving, walk: P.walk, writing: G.writing && !(typeof isHall === 'function' && isHall()), explaining: G.explaining || !!(G.labHold && G.labHold.kind === 'help') || !!G.tutor || !!G.hallHold || !!(G.writing && typeof isHall === 'function' && isHall()), carry: G.carry, give: G.give,
     shoe: upLevel('shoes') ? ['', '#e8534a', '#5cc8c0', '#f7d154'][Math.min(3, upLevel('shoes'))] : (T0.shoe || '#3a2a22'), shoeStripe: upLevel('shoes') >= 1 || !!T0.sneakers,
     gl: upLevel('presence') ? ['', '#3d5f8a', '#c9a43e', '#d94a3a'][Math.min(3, upLevel('presence'))] : null,
   });
@@ -1132,6 +1132,7 @@ function drawPresence() {
 
 function drawFormPicker() {
   const X = sx(G.p.x), Y = sy(G.p.y) + 10;
+  if (typeof isHall === 'function' && isHall()) { ptext(G.supply < 95 ? 'E HALTEN: ROTATION ANSAGEN' : 'STATIONEN NOCH FRISCH', X, Y, G.supply < 95 ? PAL.yellow : PAL.grey); return; }
   if (G.kids.some(k => k.state === 'question')) { ptext('FRAGE: E HALTEN', X, Y, '#9fd39a'); return; }
   const items = CONFIG.forms.map((f, i) => `${i + 1} ${f.name}`);
   const widths = items.map(s => s.length * 8 + 6);
@@ -1191,6 +1192,7 @@ function drawLighting() {
 
 /* ============================================================ Szene */
 function render() {
+  if (typeof isHall === 'function' && isHall()) { renderHall(); return; }
   if (typeof isLab === 'function' && isLab()) renderLabWorld(); else renderClassWorld();
   if (state === 'title') return;
   renderOverlay();
@@ -1261,6 +1263,7 @@ function renderOverlay() {
     if (k.state === 'test') { const n = G.plant ? G.plant.queue.indexOf(k) + 1 : 0; bubble(X, Y - 8, '#5cc8c0', 1 - k.t / CONFIG.lab.test.patience, 'T' + (n || ''), COL.white, 13); }
   }
   if (typeof isLab === 'function' && isLab()) drawLabOverlay();
+  if (typeof isHall === 'function' && isHall()) drawHallOverlay();
   const knockers = G.kids.filter(k => k.state === 'knock' && !(k.door === 1));
   const back = G.kids.filter(k => k.state === 'knock' && k.door === 1);
   if (back.length) { const k = back.reduce((a, b) => (a.t > b.t ? a : b)), loud = k.t > CONFIG.door.patience; bubble(sx(18.1) + 20, OY - 44 + (loud && blink(10) ? -2 : 0), PAL.orange, loud ? 1 : 1 - k.t / CONFIG.door.patience, back.length > 1 ? '!' + back.length : '!', loud ? PAL.red : COL.white, back.length > 1 ? 13 : 11); }
@@ -1272,7 +1275,7 @@ function renderOverlay() {
   drawNpcBubbles();
   if (G.noWC) { const X = sx(DOOR.cx) + 34, Y = sy(RH) - 60; rr(X - 12, Y - 10, 24, 20, 'rgba(38,35,46,.75)', 3); newsIcon('toilet', X, Y); }   // Erinnerung: WC zu
   if (G.copier.jam) bubble(sx(CPX()), sy(CPY()) - (isLab() ? 66 : 84), PAL.red, 1 - G.copier.hits / CONFIG.events.jamHits, '!', COL.white);
-  if (G.supply <= 0 && !CONFIG.board.review) bubble(sx(10), OY - WALL_H + 40, PAL.red, 1 - Math.min(1, G.emptyT / CONFIG.board.emptyDelay), '!', COL.white);
+  if (G.supply <= 0 && !CONFIG.board.review && !isHall()) bubble(sx(10), OY - WALL_H + 40, PAL.red, 1 - Math.min(1, G.emptyT / CONFIG.board.emptyDelay), '!', COL.white);
 
   // Denkblase: welche Arbeitsform ist gewählt? (nach Q abseits der Tafel)
   if (G.formFx > 0) {
@@ -1304,9 +1307,13 @@ function renderOverlay() {
     else if (tg.type === 'net') { X = sx(15.8); Y = OY - 86; }
     else if (tg.type === 'plant') { X = sx(10); Y = sy(3.9) - 100; }
     else if (tg.type === 'robot') { X = sx(G.robot.x); Y = sy(G.robot.y) - 120; }
+    else if (tg.type === 'puddle') { X = sx(G.puddle.x); Y = sy(G.puddle.y) - 40; }
+    else if (tg.type === 'motor') { const b = hallMotorBlock(); X = sx((b.x0 + b.x1) / 2); Y = sy(b.y0) - 110; }
+    else if (tg.type === 'binder') { X = sx(0.75); Y = sy(3.2) - 100; }
+    else if (tg.type === 'parts') { X = sx(17.4); Y = sy(9.8) - 60; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }
     else if (tg.type === 'npc') { X = sx(G.npc.x); Y = sy(G.npc.y) - 112; }
-    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc', 'test'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
+    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc', 'test', 'mat', 'psa', 'check', 'climb', 'climbSoon', 'wcq', 'leak'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
     const b = Math.round(Math.sin(clockT * 6) * 2);
     for (let i = 0; i < 5; i++) R(X - 6 + i, Y + i + b, 13 - i * 2, 1, COL.white);
     R(X - 6, Y - 1 + b, 13, 1, PAL.dark);
@@ -1320,7 +1327,8 @@ function renderOverlay() {
   // Fortschritt beim Halten
   const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : G.printerOff ? [G.printerOff.t / CONFIG.week.printerNoise.offHold, PAL.white]
     : G.labHold && G.labHold.kind === 'pc' ? [G.labHold.t / CONFIG.lab.pc.hold, '#9fd3f0'] : G.labHold && G.labHold.kind === 'net' ? [G.labHold.t / CONFIG.lab.net.hold, '#9fd3f0']
-    : G.labHold && G.labHold.kind === 'quit' ? [G.labHold.t / CONFIG.lab.test.quitHold, '#7cc47a'] : null;
+    : G.labHold && G.labHold.kind === 'quit' ? [G.labHold.t / CONFIG.lab.test.quitHold, '#7cc47a']
+    : G.hallHold && G.hallHold.kind === 'check' ? [G.hallHold.t / CONFIG.hall.check.hold, '#9fd39a'] : G.hallHold && G.hallHold.kind === 'clean' ? [G.hallHold.t / CONFIG.hall.leak.clean, PAL.yellow] : null;
   if (prog) { const X = sx(G.p.x), Y = sy(G.p.y) - 80; rr(X - 18, Y, 36, 8, PAL.dark, 2); R(X - 16, Y + 2, Math.round(32 * Math.min(1, prog[0])), 4, prog[1]); }
 
   for (const p of G.parts) { const s = p.s ? 2 : 3; R(p.x, p.y, s, s, p.color); }

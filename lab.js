@@ -35,26 +35,58 @@ const ROOMDEF = {
     robotHome: { x: 13.4, y: 1.25 },
     start: { x: 8.6, y: 3.1 },
   },
+  hall: {
+    name: 'Praxishalle', w: 30, h: 13,
+    blocks: [
+      { x0: 1.0, y0: 0.0, x1: 6.8, y1: 1.0, name: 'Motorregal' },
+      { x0: 0.0, y0: 0.0, x1: 1.4, y1: 5.9, name: 'Hochregal' },
+      { x0: 8.9, y0: 0.5, x1: 10.8, y1: 0.95, name: 'Hydraulik 1' }, { x0: 11.0, y0: 0.5, x1: 12.9, y1: 0.95, name: 'Hydraulik 2' },
+      { x0: 14.0, y0: 0.5, x1: 15.9, y1: 0.95, name: 'Hydraulik 3' }, { x0: 16.1, y0: 0.5, x1: 18.0, y1: 0.95, name: 'Hydraulik 4' },
+      { x0: 24.2, y0: 0.0, x1: 30, y1: 4.5, name: 'Büro' },
+      { x0: 24.6, y0: 4.8, x1: 26.2, y1: 5.6, name: 'Kopierer' },                // Drucker am Büro
+      { x0: 27.4, y0: 5.1, x1: 28.9, y1: 5.8, name: 'Tonnen' },
+      { x0: 22.1, y0: 10.4, x1: 29.6, y1: 11.9, name: 'Radlader' },
+      { x0: 13.2, y0: 9.4, x1: 16.1, y1: 10.05, name: 'Motor 1' },
+      { x0: 19.75, y0: 6.5, x1: 21.4, y1: 7.05, name: 'Motor 2' },
+      { x0: 16.6, y0: 9.8, x1: 18.2, y1: 10.6, name: 'Werkzeugwagen' },
+      { x0: 1.6, y0: 9.6, x1: 4.4, y1: 9.95, name: 'Elektrowand 1' }, { x0: 7.0, y0: 9.6, x1: 9.8, y1: 9.95, name: 'Elektrowand 2' },
+      { x0: 10.3, y0: 4.75, x1: 13.0, y1: 5.05, name: 'Mobile Tafel' },
+      { x0: 13.4, y0: 4.55, x1: 14.3, y1: 5.05, name: 'Lehrertisch' },          // Stehpult mit Ablage
+      { x0: 6.6, y0: 3.8, x1: 9.7, y1: 4.05, name: 'Smartboard' },
+      { x0: 29.4, y0: 8.7, x1: 30, y1: 9.4, name: 'Feuerlöscher' },
+    ],
+    board: { x0: 10.0, x1: 13.3, zoneY: 6.3, y0: 4.9 },
+    door: { x0: 18.4, x1: 20.8, zoneY: 12.0, cx: 19.6 },
+    copierAt: { x: 25.4, y: 5.2 }, copySpot: { x: 25.4, y: 6.1 },
+    deskAt: { x: 13.85, y: 4.55, ax: 13.85 },
+    wcDoor: { x: 27.1, y: 4.9 },
+    start: { x: 12.0, y: 5.8 },
+  },
 };
 let ROOM_ID = 'class';
+const isHall = () => ROOM_ID === 'hall';
+const usesNav = () => ROOM_ID !== 'class';
 const isLab = () => ROOM_ID === 'lab';
 const RD = () => ROOMDEF[ROOM_ID];
 const CPX = () => RD().copierAt.x, CPY = () => RD().copierAt.y;
 const DKX = () => RD().deskAt.x, DKY = () => RD().deskAt.y;
 let roomPick = 0;                                    // 0 automatisch (Block), 1 Klassenraum, 2 SPS-Labor
 try { roomPick = +(localStorage.getItem('kig_room') || 0) || 0; } catch (e) { roomPick = 0; }
-const ROOM_PICKS = ['Automatisch', 'Klassenraum', 'SPS-Labor'];
+const ROOM_PICKS = ['Automatisch', 'Klassenraum', 'SPS-Labor', 'Praxishalle'];
 function roomFor() {
   const p = RUN ? (RUN.roomPick ?? 0) : roomPick;
   if (p === 1) return 'class';
   if (p === 2) return 'lab';
-  return RUN && RUN.week >= CONFIG.week.block.length ? 'lab' : 'class';   // Prüfungswoche im SPS-Labor
+  if (p === 3) return 'hall';
+  const w = RUN ? RUN.week : 1;                                          // Block: Woche 3 Praxishalle, Woche 4 SPS-Labor
+  return w >= 4 ? 'lab' : w === 3 ? 'hall' : 'class';
 }
 function enterRoom(id) {
   if (!ROOMDEF[id]) id = 'class';
   const changed = id !== ROOM_ID;
   ROOM_ID = id;
   const d = ROOMDEF[id];
+  RW = d.w || 20; RH = d.h || 10;
   STATIC_BLOCKS.length = 0; d.blocks.forEach(b => STATIC_BLOCKS.push({ ...b }));
   for (const k of Object.keys(BOARD)) delete BOARD[k]; Object.assign(BOARD, d.board);
   for (const k of Object.keys(DOOR)) delete DOOR[k]; Object.assign(DOOR, d.door);
@@ -145,12 +177,14 @@ function makeLabKids() {
   kids.forEach(k => { k.partner = kids.find(o => o !== k && o.pair === k.pair); });
   return kids;
 }
-const seatFront = k => ({ x: k.side < 0 ? k.x + 0.95 : k.x - 0.95, y: k.y });     // Stehplatz neben dem Azubi
+const seatFront = k => (k.side ? { x: k.side < 0 ? k.x + 0.95 : k.x - 0.95, y: k.y } : { x: k.x, y: k.y + 0.75 });   // Stehplatz neben dem Azubi
 function spreadNeighbors(k) {
+  if (isHall()) return G.kids.filter(o => o !== k && isSeated(o) && (o.grp === k.grp || Math.hypot(o.x - k.x, o.y - k.y) < 2.6));
   if (!isLab()) return G.kids.filter(o => (Math.abs(o.r - k.r) + Math.abs(o.c - k.c)) === 1);
   return G.kids.filter(o => o !== k && o.c === k.c && Math.abs(o.r - k.r) === 1);
 }
 function groupsOfKids() {
+  if (isHall()) return [0, 1, 2, 3, 4, 5].map(g => G.kids.filter(k => k.grp === g));
   if (isLab()) return [0, 1, 2, 3, 4, 5].map(p => G.kids.filter(k => k.pair === p));
   const cols = form().groupSheets === 2 ? [[0, 1], [2, 3]] : CONFIG.kids.cols.map((_, c) => [c]);
   return cols.map(cs => G.kids.filter(k => cs.includes(k.c)));

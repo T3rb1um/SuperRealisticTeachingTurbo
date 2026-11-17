@@ -994,3 +994,148 @@ function drawLabOverlay() {
   if (G.netDown) bubble(sx(15.8), OY - 50 + (blink(4) ? -2 : 0), PAL.red, G.labHold && G.labHold.kind === 'net' ? G.labHold.t / CONFIG.lab.net.hold : 1, 'NET', COL.white, 16);
   if (G.robot && G.robot.stuck) bubble(sx(G.robot.x), sy(G.robot.y) - 100, '#9fd3f0', 1, '!', COL.white, 10);
 }
+
+
+/* ================================================= Spiel: Praxishalle */
+let hallCv = null, hallBgCanvas = null;
+const hallCam = { x: 0, y: 0 };
+function hallCanvas() {
+  const W = OX * 2 + 30 * T, H = OY + 13 * T + 40;
+  if (!hallCv) { hallCv = document.createElement('canvas'); hallCv.width = W; hallCv.height = H; }
+  return hallCv;
+}
+function hallBackground() {
+  if (hallBgCanvas) return hallBgCanvas;
+  const W = OX * 2 + 30 * T, H = OY + 13 * T + 40;
+  hallBgCanvas = document.createElement('canvas'); hallBgCanvas.width = W; hallBgCanvas.height = H;
+  const real = ctx; ctx = hallBgCanvas.getContext('2d');
+  const S = rmShell(30, 13, { wall: '#e2e5e8', side: '#4a525c', base: '#7a838e', floor: hallFloor });
+  hallWall(S.wy);
+  { const L = OX - 16, Y = sy(7.2); R(L, Y, 16, 1.8 * T, '#d6d9dc'); R(L + 2, Y + 2, 12, 1.8 * T - 4, '#eceeef'); R(L + 10, Y + 26, 3, 6, '#9aa2ab'); rmSign(OX + 14, Y - 8, 'exit'); }
+  ctx = real;
+  return hallBgCanvas;
+}
+function drawHallKid(k) {                      // Azubi an der Station (stehend), Zustände wie im Klassenraum
+  if (!isSeated(k)) return;
+  const st = k.state, t = clockT;
+  let jit = 0, oy = 0, face = k.face;
+  if (st === 'fidget' || st === 'wc' || st === 'wcq') jit = Math.floor(t * 9 + k.phase) % 2 ? 1 : -1;
+  if (['idle', 'loud', 'phone', 'mat', 'check', 'leak', 'net'].includes(st) || k.annoyed > 0) face = 'down';
+  if (st === 'loud') oy = -Math.abs(Math.round(Math.sin(t * 12 + k.phase) * 4));
+  let X = k.x, Y = k.y;
+  if (st === 'climb') { ctx.save(); ctx.translate(28, -40); }
+  ctx.save(); ctx.translate(jit, oy);
+  k.wx = X; k.wy = Y; const f0 = k.face; k.face = face; k.walk = 0; k.job = k.job || null;
+  drawWalker(k); k.face = f0;
+  const sx0 = sx(X), sy0 = sy(Y);
+  R(sx0 - 6, sy0 - 12, 12, 10, '#26304a'); R(sx0 - 6, sy0 - 7, 5, 2, '#d8e86a'); R(sx0 + 1, sy0 - 7, 5, 2, '#d8e86a');   // Arbeitshose mit Reflexstreifen
+  R(sx0 - 7, sy0 - 2, 6, 2, '#26232e'); R(sx0 + 1, sy0 - 2, 6, 2, '#26232e');
+  if (st !== 'psa' && face !== 'up') { R(sx0 - 6, sy0 - 39, 14, 3, 'rgba(160,220,255,.7)'); R(sx0 - 7, sy0 - 39, 16, 1, '#3a3d46'); }   // Schutzbrille
+  if (st === 'phone' || st === 'phoneSoon') { R(sx0 - 2, sy0 - 26, 5, 8, PAL.dark); R(sx0 - 1, sy0 - 25, 3, 5, '#9fd3f0'); }
+  ctx.restore();
+  if (st === 'climb') ctx.restore();
+}
+function drawHallPrinter() {                   // Drucker am Büro, mit Fach-Anzeige
+  const C = G.copier, CC = CONFIG.copier;
+  drawOfficePrinter(24.6, 4.8);
+  const b = { X: sx(24.6), Y: sy(4.8) - 34 };
+  for (let i = 0; i < Math.min(C.tray, 6); i++) R(b.X + 8, b.Y + 4 - i, 26, 1, i % 2 ? '#f0ece4' : COL.white);
+  const warming = C.printing && C.warm < CC.warmup;
+  R(b.X + 40, b.Y + 4, 8, 6, C.jam ? (blink(5) ? PAL.red : '#7a2a2a') : warming ? PAL.orange : C.cool > 0 ? '#7fb3e0' : C.printing ? '#7cc47a' : '#4f8fc9');
+  if ((C.tray > 0 && blink(3)) || (C.jam && blink(5))) { ctx.fillStyle = C.jam ? 'rgba(232,83,74,.4)' : 'rgba(247,209,84,.4)'; ctx.fillRect(b.X - 3, b.Y - 3, 58, 40); }
+}
+function drawHallBoard() {                     // mobile Tafel: Stationsplan + Frische
+  drawMobileBoard(10.4, 5.0);
+  const X = sx(10.4), Y = sy(5.0) - 64;
+  R(X, Y, 80, 48, '#f8f8f4');
+  if (G.exam) { ltext(examName().toUpperCase().replace('Ü', 'UE'), X + 4, Y + 4, '#c0503a', 1); ltext('RUHE BITTE', X + 4, Y + 16, '#26232e', 1); return; }
+  ltext('ROTATION ' + ((G.rot || 0) + 1), X + 4, Y + 3, '#2f6db5', 1);
+  for (let g = 0; g < 6; g++) { const st = (g + (G.rot || 0)) % 6; ltext((g + 1) + ' ' + HALL_ST[st].name.replace('HYDRAULIK', 'HYDR.').replace('ELEKTRO', 'ELEK.'), X + 4 + (g % 2) * 40, Y + 12 + Math.floor(g / 2) * 8, '#26232e', 1); }
+  const f = G.supply / 100;
+  R(X + 4, Y + 40, 72, 5, '#d6d9dc'); R(X + 4, Y + 40, Math.round(72 * f), 5, f < 0.25 ? PAL.red : f < 0.5 ? PAL.orange : '#7cc47a');
+}
+function drawHallPult() {                      // Stehpult mit Ablage
+  const b = box(13.4, 4.55, 0.9, 0.5, 30, '#9aa2ab', '#6b717c', '#555c68');
+  R(b.X + 2, b.Y - 2, 24, 8, '#555c68');
+  for (let i = 0; i < Math.min(G.stash, 6); i++) R(b.X + 3, b.Y + 4 - i * 2, 22, 2, i % 2 ? '#f0ece4' : COL.white);
+  if (G.stash > 0) ptext(G.stash + '/' + CONFIG.deskStashMax, b.X + 14, b.Y - 16, COL.white, PAL.dark, 1);
+}
+function drawPuddle() {
+  const P = G.puddle; if (!P) return;
+  ctx.fillStyle = 'rgba(30,30,40,.55)'; ctx.beginPath(); ctx.ellipse(sx(P.x), sy(P.y), 30, 10, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(150,120,220,.25)'; ctx.beginPath(); ctx.ellipse(sx(P.x) - 6, sy(P.y) - 2, 12, 3, 0, 0, 7); ctx.fill();
+}
+function renderHallWorld() {
+  ctx.drawImage(hallBackground(), 0, 0);
+  drawPuddle();
+  drawPresence();
+  const list = [];
+  list.push({ y: 1.0, f: () => drawEngineRack(1.8, 1.0) });
+  list.push({ y: 5.6, f: () => drawRackSide(0.1, 1.6, 4.4) });
+  [8.9, 11.0, 14.0, 16.1].forEach(x => list.push({ y: 0.9, f: () => drawHydWall(x, 0.9) }));
+  list.push({ y: 4.5, f: () => drawContainer(24.2, 0.3) });
+  list.push({ y: 5.6, f: drawHallPrinter });
+  list.push({ y: 5.8, f: () => drawBins(27.4, 5.8) });
+  const LA = sx(29.2), LB = sy(11.7);
+  list.push({ y: 11.7, f: () => { ctx.save(); ctx.translate(LA, LB); ctx.scale(-1.25, 1.25); ctx.translate(-sx(0), -sy(0)); drawLoader2(0, 0); ctx.restore(); } });
+  list.push({ y: 10.0, f: () => drawTestStand(13.2, 10.0, '#e8b830') });
+  list.push({ y: 7.0, f: () => drawTestStandFront(19.8, 7.0) });
+  list.push({ y: 10.6, f: () => drawTrolley(16.6, 9.8) });
+  list.push({ y: 9.9, f: () => drawElecWall(1.6, 9.9, 0) });
+  list.push({ y: 9.9, f: () => drawElecWall(7.0, 9.9, 2) });
+  list.push({ y: 5.0, f: drawHallBoard });
+  list.push({ y: 5.05, f: drawHallPult });
+  list.push({ y: 4.0, f: () => drawSmartboard(6.6, 4.0) });
+  list.push({ y: 9.4, f: () => { const X = sx(29.4), Y = sy(9.4); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
+  for (const k of G.kids) {
+    list.push({ y: k.state === 'climb' ? 12 : k.y, f: () => drawHallKid(k) });
+    if (k.state === 'walk') list.push({ y: k.wy, f: () => drawWalker(k) });
+  }
+  list.push({ y: G.p.y, f: drawTeacher });
+  if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
+  list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+  drawHoseRail();
+  if (G.motorLoud) {                             // Lärm-Wellen am Motor
+    const b = hallMotorBlock(), X = sx((b.x0 + b.x1) / 2), Y = sy(b.y0) - 60;
+    for (let i = 0; i < 3; i++) { const ph = (clockT * 1.5 + i / 3) % 1; ctx.strokeStyle = `rgba(242,154,78,${(1 - ph).toFixed(2)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X, Y, 10 + ph * 40, -2.6, -0.5); ctx.stroke(); }
+  }
+  rmDoor(18.5, 13);
+  if (G.doorOpen > 0) R(sx(18.5), OY + 13 * T + 1, 64, 15, '#e8d8b8');
+  for (const [x, y] of [[5, 4], [14, 4], [23, 6], [5, 10], [14, 10], [23, 10.5]]) {
+    const g = ctx.createRadialGradient(sx(x), sy(y), 6, sx(x), sy(y), 150);
+    g.addColorStop(0, 'rgba(255,250,235,.14)'); g.addColorStop(1, 'rgba(255,250,235,0)');
+    ctx.fillStyle = g; ctx.fillRect(sx(x) - 150, sy(y) - 150, 300, 300);
+  }
+}
+function drawHallOverlay() {
+  const H = CONFIG.hall;
+  for (const k of G.kids) {
+    if (!isSeated(k)) continue;
+    const X = sx(k.x) + (k.state === 'climb' ? 28 : 0), Y = sy(k.y) - 74 - (k.state === 'climb' ? 40 : 0);
+    if (k.state === 'check') bubble(X, Y - 8, '#9fd39a', 1 - k.t / H.check.patience, 'OK?', COL.white, 13);
+    if (k.state === 'mat') { bubble(X, Y - 8, PAL.yellow, 1 - k.t / H.mat.patience, '', COL.white, 11); R(X - 5, Y - 10, 10, 3, '#555c68'); R(X - 2, Y - 13, 4, 9, '#555c68'); }
+    if (k.state === 'psa') { bubble(X, Y - 8, '#2f6db5', 1 - k.t / H.psa.patience, '', COL.white, 11); R(X - 6, Y - 10, 5, 4, COL.white); R(X + 1, Y - 10, 5, 4, COL.white); R(X - 1, Y - 9, 2, 1, COL.white); }
+    if (k.state === 'climbSoon') { bubble(X, Y + 8, PAL.grey, 1 - k.t / H.climb.warn, '!', PAL.orange, 8); }
+    if (k.state === 'climb') bubble(X, Y - 8, PAL.red, 1, '!!', COL.white, 12);
+    if (k.state === 'wcq') bubble(X, Y - 8, PAL.grey, 1, 'WC', '#5cc8c0', 13);
+    if (k.state === 'leak') { bubble(X, Y + 6, PAL.grey, 1, '', PAL.grey, 8); disc(X, Y + 7, 3, '#2a2a35'); R(X - 1, Y + 1, 2, 4, '#2a2a35'); }
+  }
+  if (G.puddle) { const P = G.puddle; bubble(sx(P.x), sy(P.y) - 30 + (blink(4) ? -2 : 0), PAL.orange, P.t < H.leak.slipAfter ? 1 - P.t / H.leak.slipAfter : 1, '!', P.t >= H.leak.slipAfter ? PAL.red : COL.white, 10); }
+  if (G.motorLoud) { const b = hallMotorBlock(); bubble(sx((b.x0 + b.x1) / 2), sy(b.y0) - 84, PAL.orange, 1, 'LAUT', COL.white, 16); }
+  if (G.binder) { const X = sx(G.p.x) + 14, Y = sy(G.p.y) - 34; R(X, Y, 10, 12, '#d8c8a0'); R(X, Y, 10, 3, '#b08a5a'); }
+  if (G.mats) for (let i = 0; i < G.mats; i++) { const X = sx(G.p.x) - 20 - i * 5, Y = sy(G.p.y) - 26; R(X, Y, 4, 4, '#9aa2ab'); }
+  if (G.supply < 25 && !G.exam) bubble(sx(11.6), sy(5.0) - 92 + (blink(3) ? -2 : 0), PAL.orange, G.supply / 25, 'ROT', COL.white, 14);
+}
+function renderHall() {
+  const real = ctx, cv2 = hallCanvas();
+  ctx = cv2.getContext('2d');
+  renderHallWorld();
+  if (state !== 'title') renderOverlay();
+  ctx = real;
+  const W = cv2.width, H = cv2.height;
+  const tx = clamp(sx(G.p.x) - SW / 2, 0, W - SW), ty = clamp(sy(G.p.y) - 40 - SH / 2, 0, H - SH);
+  hallCam.x += (tx - hallCam.x) * 0.12; hallCam.y += (ty - hallCam.y) * 0.12;
+  if (Math.abs(tx - hallCam.x) > 300) { hallCam.x = tx; hallCam.y = ty; }
+  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, SW, SH);
+  ctx.drawImage(cv2, -Math.round(hallCam.x), -Math.round(hallCam.y));
+}
