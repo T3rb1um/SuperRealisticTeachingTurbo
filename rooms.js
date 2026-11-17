@@ -660,7 +660,10 @@ function labWall2(wy) {
   R(sx(15.0), wy + 10, 50, 56, '#d6d9dc'); R(sx(15.0), wy + 10, 50, 3, '#eef0f2'); R(sx(15.0) + 4, wy + 16, 42, 4, '#9aa2ab');
   for (let i = 0; i < 6; i++) R(sx(15.0) + 6 + i * 7, wy + 22, 5, 10, i % 2 ? '#3a3d46' : '#f4f4f0');
   rmEstop(sx(15.0) + 25, wy + 50);
-  rmSign(sx(17.6), wy + 30, 'warn');
+  rmSign(sx(17.4), wy + 30, 'warn');
+  const dx = sx(18.1);                                                                              // Tür an der Hinterwand
+  R(dx - 3, wy + 18, 46, WALL_H - 18, '#9aa2ab'); R(dx, wy + 21, 40, WALL_H - 21, COL.oak); R(dx, wy + 21, 40, 1, COL.oakL);
+  for (let i = 0; i < 3; i++) R(dx + 6 + i * 12, wy + 26, 1, WALL_H - 32, COL.oakD); R(dx + 32, wy + 50, 5, 3, '#d9b25a');
 }
 function labSideWalls() {
   // Fenster in der linken Wand, Türen in der rechten
@@ -670,23 +673,25 @@ function labSideWalls() {
     R(L + 2, Y, 12, 2.0 * T, '#9fc7e0'); R(L + 4, Y + 4, 4, 2.0 * T - 8, '#d8eefa'); R(L + 2, Y + T - 1, 12, 2, '#e2e4e6');
     ctx.fillStyle = 'rgba(255,240,200,.10)'; ctx.beginPath(); ctx.moveTo(OX, Y); ctx.lineTo(OX + 70, Y + 20); ctx.lineTo(OX + 70, Y + 2.0 * T + 20); ctx.lineTo(OX, Y + 2.0 * T); ctx.fill();
   }
-  for (const y of [0.6, 7.9]) {
-    const Y = sy(y);
-    R(Rr, Y, 16, 1.8 * T, COL.oakDD); R(Rr + 2, Y + 2, 12, 1.8 * T - 4, COL.oak); R(Rr + 3, Y + 30, 3, 6, '#d9b25a');
-  }
 }
-function drawWallDesk(side) {                  // lange Reihe an der Wand: SPS-Trainer + PCs
+const LAB_PAIRS = [[3.5, 4.4], [5.7, 6.6], [7.9, 8.8]];
+function drawWallDesk(side) {                  // lange Reihe an der Wand: pro Azubi-Paar ein PC und eine SPS
   const x = side < 0 ? 0.1 : 18.6, b = box(x, 2.4, 1.3, 7.2, 16, '#eceeef', '#9aa2ab', '#7d8590');
   R(b.X, b.Y, b.W, 1, '#ffffff');
-  for (let n = 0; n < 6; n++) {
-    const Y = sy([3.1, 4.0, 5.6, 6.5, 8.1, 9.0][n]) - 16 - 30, X = b.X + (side < 0 ? 4 : b.W - 26);
-    R(X, Y, 22, 18, '#9aa2ab'); R(X, Y, 22, 2, '#c9ccd1'); R(X + 3, Y + 4, 16, 5, '#3a3d46');       // SPS-Trainer (von oben)
-    for (let j = 0; j < 4; j++) px(X + 5 + j * 4, Y + 6, blink(1.3 + j * 0.37, n) ? '#7cc47a' : '#2a4a2a');
-    for (let j = 0; j < 3; j++) R(X + 4 + j * 6, Y + 12, 3, 3, ['#d94a3a', '#7cc47a', '#f2c14e'][j]);
-    const MX = side < 0 ? b.X + 28 : b.X + 6;                                                       // Monitor im Profil, Bild zum Azubi
-    R(MX, Y - 6, 4, 26, '#26232e'); R(MX + (side < 0 ? 4 : -1), Y - 4, 1, 22, (n % 2) ? '#69b2ee' : '#7cc47a');
-    ctx.strokeStyle = '#e8853a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + 11, Y + 18); ctx.quadraticCurveTo(X + 11 + side * -10, Y + 26, MX + 2, Y + 20); ctx.stroke();
-  }
+  LAB_PAIRS.forEach(([y1, y2], n) => {
+    const cy = (sy(y1) + sy(y2)) / 2 - 46;
+    const SX = b.X + (side < 0 ? 3 : b.W - 25);                                                     // SPS (von oben)
+    R(SX, cy - 18, 22, 18, '#9aa2ab'); R(SX, cy - 18, 22, 2, '#c9ccd1'); R(SX + 3, cy - 14, 16, 5, '#3a3d46');
+    for (let j = 0; j < 4; j++) px(SX + 5 + j * 4, cy - 12, blink(1.3 + j * 0.37, n) ? '#7cc47a' : '#2a4a2a');
+    for (let j = 0; j < 3; j++) R(SX + 4 + j * 6, cy - 6, 3, 3, ['#d94a3a', '#7cc47a', '#f2c14e'][j]);
+    const MX = side < 0 ? b.X + 28 : b.X + 6;                                                       // Monitor im Profil, Bild zu den Azubis
+    R(MX, cy - 2, 4, 30, '#26232e'); R(MX + (side < 0 ? 4 : -1), cy, 1, 26, n % 2 ? '#69b2ee' : '#7cc47a');
+    R(side < 0 ? MX - 4 : MX + 4, cy + 12, 4, 6, '#3a3d46');
+    const KX = side < 0 ? b.X + 18 : b.X + 14;                                                      // Tastatur + Maus
+    R(KX, cy + 6, 8, 22, '#3a3d46'); for (let j = 0; j < 5; j++) R(KX + 2, cy + 8 + j * 4, 4, 1, '#555c68');
+    R(KX + (side < 0 ? 1 : 2), cy + 32, 5, 7, '#3a3d46'); px(KX + 3, cy + 33, '#9aa2ab');
+    ctx.strokeStyle = '#e8853a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(SX + 11, cy); ctx.quadraticCurveTo(SX + 11 - side * 6, cy + 10, MX + 2, cy + 6); ctx.stroke();
+  });
 }
 function rmSitSide(i, x, y, side) {            // sitzender Azubi im Profil, Blick zur Wand (side -1 links, +1 rechts)
   const k = RKIDS[i % 12], X = sx(x), Y = sy(y), s = side;
@@ -745,23 +750,44 @@ function drawLab() {
     draw3DPrinterAt(b.X + 84, b.Y + 6);
   } });
   list.push({ y: 2.6, f: () => {                                                         // Lehrerpult
-    const b = box(3.4, 1.6, 6.2, 1.0, 20, '#eceeef', '#9aa2ab', '#7d8590');
+    const b = box(5.2, 1.6, 5.4, 1.0, 20, '#eceeef', '#9aa2ab', '#7d8590');
     R(b.X + 20, b.Y - 18, 28, 20, '#26232e'); R(b.X + 22, b.Y - 16, 24, 14, '#2b3a4a'); R(b.X + 52, b.Y - 18, 28, 20, '#26232e'); R(b.X + 54, b.Y - 16, 24, 14, '#69b2ee');
     R(b.X + 30, b.Y + 6, 34, 6, '#3a3d46'); R(b.X + 100, b.Y + 4, 30, 20, '#9aa2ab'); R(b.X + 104, b.Y + 8, 22, 6, '#3a3d46'); R(b.X + 160, b.Y + 6, 8, 8, COL.white);
   } });
   list.push({ y: 9.6, f: () => drawWallDesk(-1) });
   list.push({ y: 9.6, f: () => drawWallDesk(1) });
-  list.push({ y: 8.4, f: () => drawBigMPS(7.4, 4.4) });
-  list.push({ y: 10.0, f: () => drawConveyor(8.3, 9.2, 3.4) });
-  list.push({ y: 10.0, f: () => { for (let i = 0; i < 3; i++) { const b = box(13.2 + i * 1.3, 9.3, 1.2, 0.7, 40, '#d6d9dc', '#b9bec5', '#9aa2ab'); R(b.X + 4, b.Y + 4, b.W - 8, 2, '#9aa2ab'); } } });   // Schränke
+  list.push({ y: 7.6, f: () => drawBigMPS(7.4, 3.9) });
+  list.push({ y: 10.0, f: () => drawConveyor(3.0, 9.2, 3.2) });
+  list.push({ y: 10.0, f: () => { for (let i = 0; i < 3; i++) { const b = box(12.0 + i * 1.3, 9.45, 1.2, 0.7, 40, '#d6d9dc', '#b9bec5', '#9aa2ab'); R(b.X + 4, b.Y + 4, b.W - 8, 2, '#9aa2ab'); } } });   // Schränke links neben der Tür
+  const rp = robotPos(); list.push({ y: rp[1], f: () => drawMobileRobot(rp[0], rp[1]) });
   // Azubis: je Seite 3 Paare, Blick zur Wand
   let n = 0;
-  for (const side of [-1, 1]) for (const y of [3.1, 4.0, 5.6, 6.5, 8.1, 9.0]) { const i = n++; list.push({ y, f: () => rmSitSide(i, side < 0 ? 2.15 : 17.85, y, side) }); }
-  list.push({ y: 3.3, f: () => rmTeacher(6.6, 3.3) });
+  for (const side of [-1, 1]) for (const y of LAB_PAIRS.flat()) { const i = n++; list.push({ y, f: () => rmSitSide(i, side < 0 ? 2.15 : 17.85, y, side) }); }
+  list.push({ y: 3.1, f: () => rmTeacher(8.6, 3.1) });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+  rmDoor(15.9, 10);                                                                                  // Tür vorne
   // kühles LED-Licht
   ctx.fillStyle = 'rgba(220,240,255,.07)'; ctx.fillRect(OX, OY, 20 * T, 10 * T);
   for (const x of [5, 10, 15]) { const g = ctx.createRadialGradient(sx(x), sy(5), 10, sx(x), sy(5), 170); g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(sx(x) - 170, sy(5) - 170, 340, 340); }
+}
+function drawMobileRobot(x, y) {               // kleiner Fahrroboter: runde Basis, Profilsäule, Band oben, Signalsäule, Not-Aus
+  const X = sx(x), Y = sy(y);
+  softShadow(X, Y + 2, 18, 5, 0.25);
+  ctx.fillStyle = '#9aa2ab'; ctx.beginPath(); ctx.ellipse(X, Y - 6, 18, 8, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#eceeef'; ctx.beginPath(); ctx.ellipse(X, Y - 10, 17, 7, 0, 0, 7); ctx.fill();
+  R(X - 17, Y - 10, 34, 5, '#d6d9dc'); R(X - 6, Y - 9, 6, 3, '#26232e'); R(X + 6, Y - 9, 4, 3, '#3d7fc4');
+  R(X - 3, Y - 54, 6, 44, '#c9ccd1'); R(X - 3, Y - 54, 2, 44, '#e6e8ea');                           // Säule
+  R(X - 16, Y - 60, 32, 6, '#c9ccd1'); R(X - 14, Y - 66, 28, 6, '#3a3d46');                          // Band oben
+  const off = Math.round((clockT * 10) % 8); for (let i = 0; i < 4; i++) R(X - 13 + ((i * 8 + off) % 26), Y - 65, 2, 4, '#555c68');
+  R(X - 22, Y - 74, 5, 18, '#3a3d46'); R(X - 22, Y - 80, 5, 3, blink(1.5) ? '#7cc47a' : '#2a4a2a'); R(X - 22, Y - 83, 5, 3, '#7a6a2a'); R(X - 22, Y - 86, 5, 3, '#5a2a2a');
+  R(X + 10, Y - 76, 6, 10, '#c9ccd1'); disc(X + 13, Y - 78, 3, '#d94a3a');                           // Not-Aus
+}
+function robotPos() {                          // fährt hin und zurück: rechts oben → um die Anlage links herum → vorne bis vor die Schränke
+  const P = [[15.4, 3.4], [6.6, 3.4], [6.6, 8.9], [11.2, 8.9]];
+  const L = P.slice(1).map((q, i) => Math.hypot(q[0] - P[i][0], q[1] - P[i][1])), tot = L.reduce((a, b) => a + b, 0);
+  let d = (clockT * 0.9) % (2 * tot); if (d > tot) d = 2 * tot - d;
+  for (let i = 0; i < L.length; i++) { if (d <= L[i]) { const f = d / L[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * f, P[i][1] + (P[i + 1][1] - P[i][1]) * f]; } d -= L[i]; }
+  return P[P.length - 1];
 }
 function draw3DPrinterAt(X, Y) { R(X, Y - 26, 20, 26, '#3a3d46'); R(X + 2, Y - 22, 16, 18, 'rgba(190,225,245,.4)'); R(X + 4 + Math.round((Math.sin(clockT * 2) + 1) * 5), Y - 20, 4, 3, '#f29a4e'); R(X + 4, Y - 8, 12, 3, '#7cc47a'); }
 
