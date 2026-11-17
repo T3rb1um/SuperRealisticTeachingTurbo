@@ -293,8 +293,9 @@ function drawBoard() {
   const lineY = i => by + 5 + i * 12 + (i ? 2 : 0);
   const figX = bx + 130, figY = by + 8;
   if (G.exam) {                                                  // Klassenarbeit
-    ltext('KLASSENARBEIT', bx + 6, lineY(0), '#f2c14e', 2);
-    R(bx + 6, lineY(0) + 11, 13 * 8 - 2, 1, '#c9a43e');
+    const en = examName().toUpperCase().replace('Ü', 'UE');
+    ltext(en, bx + 6, lineY(0), '#f2c14e', 2);
+    R(bx + 6, lineY(0) + 11, en.length * 8 - 2, 1, '#c9a43e');
     ltext('RUHE BITTE!', bx + 6, lineY(1) + 2, COL.chalk, 2);
     ltext('KEIN SPICKEN', bx + 6, lineY(2) + 2, COL.chalk, 2);
     const left = Math.max(0, Math.ceil(CONFIG.lessonSeconds - G.t));
@@ -362,6 +363,24 @@ function drawClockAndSigns() {
     disc(ax + 5, ay + 13, 3, n > 0 && n < CONFIG.maxProblems ? PAL.yellow : '#5a5a2a');
     disc(ax + 5, ay + 21, 3, n === 0 ? '#7cc47a' : '#2a4a2a');
   }
+  // Sitzplan auf der Pinnwand
+  if (has('seating')) {
+    const pb = OX + 470, pby = wy + 14;
+    R(pb + 3, pby + 24, 18, 17, '#fdfaf2'); R(pb + 5, pby + 26, 14, 2, '#3d5f8a');
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) R(pb + 5 + c * 4, pby + 30 + r * 3, 3, 2, '#9ab');
+    R(pb + 11, pby + 23, 2, 2, '#d94a3a');
+  }
+  // Handy-Garage an der Wand
+  if (has('phonebox')) {
+    const hx = sx(1.9), hy = wy + 22;
+    R(hx - 2, hy - 2, 40, 34, COL.oakD); R(hx, hy, 36, 30, COL.oak);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+      const cx2 = hx + 2 + c * 9, cy2 = hy + 2 + r * 14;
+      R(cx2, cy2, 7, 12, COL.oakDD);
+      if ((r * 4 + c) % 3 !== 2) { R(cx2 + 1, cy2 + 2, 5, 10, PAL.dark); R(cx2 + 2, cy2 + 3, 3, 6, (r + c) % 2 ? '#3a5a7a' : '#2a3a4a'); }
+    }
+    ltext('HANDYS', hx + 7, hy + 32, COL.ink, 1);
+  }
   // Klassenregeln-Poster (Game-Changer)
   if (has('rules')) {
     const px0 = sx(3.15), py0 = wy + 18;
@@ -397,6 +416,8 @@ function drawTeacherDesk() {
   for (let i = 0; i < 3; i++) { const ph = (t * 0.6 + i / 3) % 1; R(X + 47 + Math.sin(t * 2 + i) * 2, Y + 18 - ph * 14, 1, 3, `rgba(255,255,255,${(0.6 * (1 - ph)).toFixed(2)})`); }
   // Sukkulente
   R(X + 30, Y + 24, 8, 6, '#d9774a'); disc(X + 34, Y + 21, 3, '#7cc47a'); px(X + 33, Y + 18, '#9fd39a');
+  // Klangschale (Game-Changer): glänzt, solange sie noch nicht benutzt ist
+  if (has('gong')) { const used = !(G.gongLeft > 0); disc(X + 63, Y + 31, 6, used ? '#8a7a4a' : '#c9a43e'); R(X + 58, Y + 28, 10, 2, used ? '#6b5f3a' : '#f2d27a'); R(X + 60, Y + 36, 6, 2, '#7a3a3a'); if (!used && blink(0.7)) px(X + 59, Y + 27, COL.white); }
   // Klemmbrett (Upgrade)
   if (upLevel('clip')) { R(X + 74, Y + 18, 14, 17, '#a8794a'); R(X + 75, Y + 21, 12, 13, COL.white); R(X + 78, Y + 16, 6, 4, '#9aa2ab'); for (let i = 0; i < Math.min(3, upLevel('clip')) + 1; i++) R(X + 77, Y + 24 + i * 3, 8, 1, '#9ab'); }
   // Ablage für Blätter
@@ -425,6 +446,13 @@ function drawShelf() {
   for (let i = 0; i < 4; i++) { R(X + 37 + Math.round(s2 * (i / 3)), b.Y - 6 + i * 6, 3, 5, i % 2 ? '#5fa85a' : '#7cc47a'); }
 }
 
+function drawStool() {          // Lernbegleitung: Hocker zum Danebensetzen
+  if (!has('tutor')) return;
+  const X = sx(5.5), Y = sy(1.6);
+  softShadow(X, Y, 9, 2);
+  R(X - 7, Y - 12, 2, 12, COL.metal); R(X + 5, Y - 12, 2, 12, COL.metal);
+  disc(X, Y - 14, 8, '#7cc47a'); disc(X, Y - 15, 6, '#9fd39a');
+}
 function drawPlant() {          // Monstera in der Ecke
   const x = sx(19.35), y = sy(0.85), t = clockT;
   softShadow(x, y, 15, 4);
@@ -486,6 +514,10 @@ function drawExtinguisher() {
 
 function drawDoor() {
   const X = sx(DOOR.x0 + 0.2), Y = OY + RH * T, w = 64, open = G.doorOpen > 0;
+  if (has('opener')) {                                  // Türöffner: Antriebskasten mit Lämpchen und Taster
+    R(X + 2, Y + 17, 30, 7, '#9aa2ab'); R(X + 2, Y + 17, 30, 1, '#c9ccd1'); R(X + 26, Y + 19, 3, 3, blink(1) ? '#7cc47a' : '#3a5a3a');
+    R(X - 16, Y + 2, 9, 11, '#3d7fc4'); R(X - 14, Y + 4, 5, 5, COL.white); R(X - 13, Y + 5, 3, 3, '#3d7fc4');
+  }
   const shake = G.kids.some(k => k.state === 'knock') && blink(16) ? 1 : 0;
   R(X - 4, Y - 1, w + 8, 17, COL.oakDD);
   R(X + shake, Y + 1, w, 15, open ? '#e8d8b8' : COL.oak);
@@ -540,6 +572,18 @@ function drawCopier() {      // Büro-Multifunktionsgerät
     R(X + 6, y + 3, 4, 2, '#3d7fc4');
   }
   R(X + 4, Yb, 6, 2, COL.ink); R(X + W - 10, Yb, 6, 2, COL.ink);
+  if (has('netprint')) {                                // Netzwerkdrucker: Antenne + WLAN-Lämpchen + AUTO
+    const ax = X + W - 8, ay = top - Dp;
+    R(ax, ay - 20, 2, 20, '#3a3d46'); disc(ax + 1, ay - 21, 2, blink(1.5) ? '#7cc47a' : '#3a5a3a');
+    for (let i = 1; i <= 2; i++) { ctx.strokeStyle = `rgba(92,200,192,${(0.5 + 0.5 * Math.sin(t * 3 - i)).toFixed(2)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(ax + 1, ay - 21, 3 + i * 3, -2.4, -0.7); ctx.stroke(); }
+    const off = G.exam && !G.printerOn;
+    R(X + W - 22, top + 4, 16, 8, off ? '#22242a' : '#2b3a33'); if (!off) ltext('AUTO', X + W - 21, top + 6, '#7cc47a', 1);
+    if (G.printerOn) for (let i = 0; i < 3; i++) { const ph = (t * 1.5 + i / 3) % 1; ltext('~', X + W + 2 + ph * 10, top + 10 + i * 12 - ph * 6, `rgba(255,243,192,${(1 - ph).toFixed(2)})`, 2); }
+  }
+  if (has('techteam')) {                                // Werkzeugkiste neben dem Kopierer
+    const tx = X + W + 6, ty = Yb - 14;
+    R(tx, ty, 22, 12, '#c0503a'); R(tx, ty, 22, 3, '#e06a52'); R(tx + 7, ty - 4, 8, 2, '#3a3d46'); R(tx + 7, ty - 4, 2, 4, '#3a3d46'); R(tx + 13, ty - 4, 2, 4, '#3a3d46'); R(tx + 9, ty + 5, 4, 2, '#d9b25a');
+  }
   const lv = upLevel('copier');
   if (lv >= 1) { R(X + 24, top + 36, 10, 6, '#7cc47a'); R(X + 26, top + 38, 6, 2, COL.white); }
   if (lv >= 2) { R(X, top + 12, 2, H - 12, '#3d7fc4'); R(X + W - 4, top + 12, 2, H - 12, '#3d7fc4'); }
@@ -571,6 +615,10 @@ function drawDesk(k) {
   if (k.item === 2) { disc(X + 42, iy + 6, 5, '#9aa2ab'); disc(X + 42, iy + 6, 2, '#6b7280'); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; px(X + 42 + Math.cos(a) * 6, iy + 6 + Math.sin(a) * 6, '#9aa2ab'); } R(X + 16, iy + 2, 16, 10, COL.white); R(X + 18, iy + 5, 10, 1, '#b0c4de'); }
   if (k.item === 3) { R(X + 16, iy + 2, 16, 10, COL.white); R(X + 18, iy + 5, 10, 1, '#b0c4de'); R(X + 36, iy + 6, 16, 2, '#c9ccd1'); R(X + 36, iy + 2, 2, 6, '#c9ccd1'); R(X + 42, iy + 2, 2, 6, '#c9ccd1'); R(X + 52, iy + 1, 3, 9, '#5cc8c0'); }
   if (k.state === 'work' || k.state === 'fidget') R(X + 32, iy + 1, 2, 9, '#3d5f8a');
+  if (has('tables') && k.r === 0) {                    // Gruppentische: Tischaufsteller in Gruppenfarbe
+    const gc = k.c < 2 ? '#3d7fc4' : '#e8853a', gx = k.c % 2 ? X + 2 : X + b.W - 12;
+    R(gx, iy - 8, 10, 9, gc); R(gx + 1, iy - 7, 8, 1, shade(gc, 0.3)); ltext(k.c < 2 ? 'A' : 'B', gx + 3, iy - 6, COL.white, 1);
+  }
 }
 
 // Haare je Stil. turn: 0 Rücken, 1 Profil, 2 von vorne. side: Blickrichtung im Profil.
@@ -713,6 +761,11 @@ function drawKid(k) {
   if (k.annoyed > 0) R(bx + (side > 0 ? 3 : -6), hy + 13, 4, 1, PAL.dark);
 }
 
+function sash(X, Y) {            // Klassensprecher-Schärpe (gold mit Klassensprecher+)
+  const c = has('helper2') ? '#f2c14e' : '#d94a3a';
+  for (let i = 0; i < 9; i++) R(X - 9 + i * 2, Y - 30 + i * 2, 3, 2, c);
+  disc(X + 5, Y - 18, 2, has('helper2') ? COL.white : PAL.yellow);
+}
 function drawWalker(k) {          // Zuspätkommer, WC-Gänger, Klassensprecher
   const X = sx(k.wx), Y = sy(k.wy), step = Math.round(Math.sin(k.walk) * 2), bob = Math.abs(Math.round(Math.sin(k.walk)));
   softShadow(X, Y, 11, 3);
@@ -722,6 +775,7 @@ function drawWalker(k) {          // Zuspätkommer, WC-Gänger, Klassensprecher
   rr(X - 10, Y - 30 - bob, 20, 19, jc, 3); R(X + 6, Y - 28 - bob, 3, 16, shade(jc, -0.2)); R(X - 10, Y - 22 - bob, 20, 2, k.accent);
   R(X - 13, Y - 28 - bob, 4, 13, jc); R(X + 9, Y - 28 - bob, 4, 13, jc);
   R(X + 3, Y - 30 - bob, 3, 18, '#3a3d46');                   // Rucksackgurt
+  if (has('helper') && k.i === 0) sash(X, Y - bob + 1);
   if (k.job && k.job.kind === 'tech' && k.job.stage === 'fix') { const w = Math.round(Math.sin(clockT * 16) * 2); R(X - 18, Y - 24 - bob + w, 8, 3, '#9aa2ab'); R(X - 20, Y - 26 - bob + w, 3, 7, '#9aa2ab'); R(X - 12, Y - 24 - bob + w, 3, 3, k.skin); }
   if (k.job && k.job.has) { R(X + 9, Y - 20 - bob, 8, 10, COL.white); R(X + 10, Y - 17 - bob, 5, 1, '#c9d3dc'); R(X + 9, Y - 16 - bob, 4, 4, k.skin); }   // Blatt in der Hand
   const turn = k.face === 'up' ? 0 : k.face === 'down' ? 2 : 1, side = k.face === 'left' ? -1 : 1;
@@ -1149,10 +1203,11 @@ function render() {
   ];
   for (const k of G.kids) {
     list.push({ y: k.dy + 0.55, f: () => drawDesk(k) });
-    list.push({ y: k.y, f: () => drawKid(k) });
+    list.push({ y: k.y, f: () => { drawKid(k); if (has('helper') && k.i === 0 && isSeated(k)) sash(sx(k.x), sy(k.y)); } });
     if (k.state === 'walk') list.push({ y: k.wy, f: () => drawWalker(k) });
   }
   list.push({ y: G.p.y, f: drawTeacher });
+  list.push({ y: 1.6, f: drawStool });
   if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawDoor();
@@ -1192,6 +1247,20 @@ function render() {
   if (G.copier.jam) bubble(sx(1.1), sy(8.5) - 84, PAL.red, 1 - G.copier.hits / CONFIG.events.jamHits, '!', COL.white);
   if (G.supply <= 0 && !CONFIG.board.review) bubble(sx(10), OY - WALL_H + 40, PAL.red, 1 - Math.min(1, G.emptyT / CONFIG.board.emptyDelay), '!', COL.white);
 
+  // Denkblase: welche Arbeitsform ist gewählt? (nach Q abseits der Tafel)
+  if (G.formFx > 0) {
+    const X = sx(G.p.x), Y = sy(G.p.y) - 108, FC = ['#9fd3f0', '#9fd39a', '#f2c14e'], n = [1, 2, 4][G.formSel], c = FC[G.formSel];
+    ctx.globalAlpha = Math.min(1, G.formFx * 3);
+    disc(X - 12, Y + 34, 2, COL.white); disc(X - 7, Y + 28, 3, COL.white);
+    rr(X - 22, Y - 12, 44, 30, COL.white, 6); rr(X - 20, Y - 10, 40, 26, '#fdfaf2', 5);
+    const gap = 9, x0 = X - ((n - 1) * gap) / 2;
+    for (let i = 0; i < n; i++) { const fx = Math.round(x0 + i * gap); disc(fx, Y - 2, 3, shade(c, -0.25)); R(fx - 3, Y + 2, 7, 8, c); R(fx - 3, Y + 9, 7, 1, shade(c, -0.3)); }
+    ctx.globalAlpha = 1;
+  }
+  if (G.exam) for (const k of G.kids) if (k.state === 'question' && k.qs) {           // Klassenarbeit: Vertrösten-Zähler
+    const X = sx(k.x), Y = sy(k.y) - 100;
+    for (let i = 0; i < CONFIG.week.examQuestionSoothes; i++) disc(X - 8 + i * 8, Y, 3, i < k.qs ? '#9fd39a' : 'rgba(38,35,46,.6)');
+  }
   // Lärmampel: wer wird gleich unruhig?
   if (G.forecastKid && G.forecastKid.state === 'work') {
     const k = G.forecastKid, X = sx(k.x), Y = sy(k.y) - 66;
@@ -1200,7 +1269,7 @@ function render() {
 
   // Ziel-Pfeil
   const tg = currentTarget();
-  if (tg && tg.type !== 'board' && !G.writing && !G.give && !G.grab && !G.deskHold) {
+  if (tg && tg.type !== 'board' && !(tg.type === 'copier' && G.exam && !G.printerOn) && !G.writing && !G.give && !G.grab && !G.deskHold) {
     let X, Y;
     if (tg.type === 'copier') { X = sx(1.1); Y = sy(8.5) - 96; }
     else if (tg.type === 'desk') { X = sx(2.2); Y = sy(0.15) - 50; }
@@ -1218,7 +1287,7 @@ function render() {
   }
 
   // Fortschritt beim Halten
-  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : null;
+  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : G.printerOff ? [G.printerOff.t / CONFIG.week.printerNoise.offHold, PAL.white] : null;
   if (prog) { const X = sx(G.p.x), Y = sy(G.p.y) - 80; rr(X - 18, Y, 36, 8, PAL.dark, 2); R(X - 16, Y + 2, Math.round(32 * Math.min(1, prog[0])), 4, prog[1]); }
 
   for (const p of G.parts) { const s = p.s ? 2 : 3; R(p.x, p.y, s, s, p.color); }

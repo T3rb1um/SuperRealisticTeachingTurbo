@@ -101,18 +101,18 @@ const CONFIG = {
 
   taler: { perTask: 1, perStar: 5 },
 
-  // Tür-Ereignisse: max. 1 pro Stunde, ab Dienstag (nicht in der Klassenarbeit)
+  // Tür-Ereignisse: max. 1 pro Stunde, ab Woche 2 (nicht in der Klassenarbeit), Häufigkeit je Woche in week.block
   doorEvents: {
-    fromDay: 1, chance: 0.8, from: 20, to: 60,
+    from: 20, to: 55,
     weights: { intruder: 1, question: 1, news: 1.4 },
-    knockTime: 1.4,                                  // Kollegen klopfen erst
-    intruder: { drain: 0.8, radius: 4.5, stay: 20, reward: 2 },         // Schüler reißt die Tür auf
-    question: { hold: 2, reward: 2, patience: 12, drain: 0.3, fidgetEvery: 5, stay: 22 },  // Kollege mit Frage
+    knockTime: 3,                                    // Kollegen klopfen erst
+    intruder: { drain: 0.8, radius: 4.5, stay: Infinity, reward: 2 },   // Schüler reißt die Tür auf – bleibt, bis man ihn rauswirft
+    question: { hold: 2, reward: 2, patience: 20, drain: 0.3, fidgetEvery: 5, stay: 40 },  // Kollege mit Frage
     news: {                                          // Kollege mit Neuigkeit (Bildchen)
-      stay: 6, listen: 1,
+      stay: 20, listen: 1,
       copierBusy: 15,                                // Kopierer im Lehrerzimmer kaputt → Kollege belegt deinen
       cakeBonus: 8, cakeOrder: 70,                   // Kuchen: Bonus bei Ø Ordnung ab 70
-      trainerAfter: 15, trainerStay: 6, trainerOrder: 70, trainerBonus: 10, trainerMalus: 5,
+      trainerAfter: 15, trainerStay: 12, trainerOrder: 70, trainerBonus: 10, trainerMalus: 5,
       heatTime: 10, heatShare: 0.4, heatSpawn: 2.5,  // „Hitzefrei?“-Gerücht
       kinds: ['toilet', 'copier', 'cake', 'trainer', 'heat'],
     },
@@ -127,14 +127,23 @@ const CONFIG = {
   week: {
     days: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'],
     lessonsPerDay: 2,
-    examTarget: 480,            // Lernpunkte der Klasse in der Woche (9 Stunden) für einen Schnitt von 4,0
+    examTarget: 560,            // Lernpunkte der Klasse in der Woche (9 Stunden) für einen Schnitt von 4,0
     cheatEvery: 9,              // Klassenarbeit: so oft (s) versucht jemand zu spicken
     cheatPatience: 6,           // so lange hast du Zeit, den Spicker zu erwischen
     examGrowth: 1.2,            // jede Woche wird die Klassenarbeit schwerer
     difficultyPerDay: 0.07,     // jeder Tag: Ereignisse ca. 7 % häufiger
     extraProblemEvery: 3,       // alle 3 Tage darf 1 Problem mehr gleichzeitig offen sein
     changerAfterDay: 2,         // nach Mittwoch: Game-Changer (1 aus 3)
-    changerGrade: 3,            // Klassenarbeit mit Note 3 oder besser: noch ein Game-Changer
+    changerGrade: 3,
+    // Berufsschulblock: 4 Wochen, jede bringt etwas Neues. doors = Chance auf Tür-Ereignis pro Stunde.
+    block: [
+      { name: 'Ankommen',      exam: 'Test',            news: 'Tafel, Kopierer, Pult und Tür kennenlernen. Noch keine Handys, kein Besuch.', doors: 0, phones: false },
+      { name: 'Alltag',        exam: 'Klassenarbeit',   news: 'Neu: Besuch an der Tür (Störenfried, Kollegen mit Fragen und Neuigkeiten) und Handys.', doors: 0.8, phones: true },
+      { name: 'Stress',        exam: 'Klassenarbeit',   news: 'Neu: Der Ausbilder schaut jeden Tag einmal vorbei. Jede Stunde klopft jemand.', doors: 1, phones: true, trainerDaily: true },
+      { name: 'Prüfungswoche', exam: 'Zwischenprüfung', news: 'Die Klasse ist nervös (mehr Unruhe) und es gibt 25 % weniger Taler. Freitag: Zwischenprüfung!', doors: 0.8, phones: true, nervous: 1.12, taler: 0.75 },
+    ],
+    examQuestionSoothes: 3,     // Klassenarbeit: so oft (spürbar, ≥ 1/3) vertrösten, dann gibt der Azubi auf
+    printerNoise: { drain: 0.4, cheatMult: 1.5, offHold: 3 },   // Netzwerkdrucker brummt in der Klassenarbeit            // Klassenarbeit mit Note 3 oder besser: noch ein Game-Changer
   },
 };
 const BASE_CONFIG = structuredClone(CONFIG);
@@ -471,8 +480,8 @@ const TEACHER_PICK = [
   { idx: 2, trait: 'Organisationstalent', desc: 'Teilt Blätter aus dem Stapel 40 % schneller aus, der Kopierer wärmt 20 % schneller auf.',
     apply: C => { C.give.stackMin *= 0.6; C.give.stackMax *= 0.6; C.copier.warmup *= 0.8; },
     routine: 'sheets', pool: ['warm', 'board', 'calm', 'sleep'] },
-  { idx: 1, trait: 'Ruhepol', desc: 'Präsenz-Kreis 15 % größer, läuft dafür 5 % langsamer.',
-    apply: C => { C.presence.radius *= 1.15; C.player.speed *= 0.95; },
+  { idx: 1, trait: 'Ruhepol', desc: 'Präsenz-Kreis 15 % größer, läuft dafür 10 % langsamer.',
+    apply: C => { C.presence.radius *= 1.15; C.player.speed *= 0.9; },
     routine: 'calm', pool: ['talk', 'board', 'faq', 'sheets'] },
   { idx: 3, trait: 'Flink', desc: 'Läuft 12 % schneller.',
     apply: C => { C.player.speed *= 1.12; },
@@ -531,13 +540,17 @@ function saveSlotsHtml(mode) {   // mode: 'save' (Ende der Stunde) oder 'load' (
   return rows.length ? `<div class="slots">${rows.join('')}</div>` : '';
 }
 
-function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {}, kidLearn: new Array(12).fill(0), kidFocus: new Array(12).fill(1) }; newDay(); }
+function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {}, kidLearn: new Array(12).fill(0), kidFocus: new Array(12).fill(1), grades: [], stars: 0 }; newDay(); }
 function newDay() {
   RUN.jamLesson = randInt(0, CONFIG.week.lessonsPerDay - 1); RUN.beamerUpdate = true; RUN.prep = {};
+  RUN.trainerLesson = blk().trainerDaily ? (RUN.day === CONFIG.week.days.length - 1 ? 0 : randInt(0, CONFIG.week.lessonsPerDay - 1)) : -1;
   const tp = TEACHER_PICK[RUN.teacherPick];
   RUN.prepOffer = tp.pool.filter(id => id !== tp.routine).sort(() => Math.random() - 0.5).slice(0, 3);
 }   // 1× pro Tag Papierstau / Beamer-Update
 const has = id => !!(RUN && RUN.ch[id]);
+const blk = () => { const B = CONFIG.week.block; return B[Math.min(B.length, RUN ? RUN.week : 1) - 1]; };
+const examName = () => blk().exam;
+const isFinalWeek = () => RUN && RUN.week >= CONFIG.week.block.length;
 const upLevel = id => (RUN && RUN.up[id]) || 0;
 
 // Setzt CONFIG auf die Grundwerte zurück und rechnet Tages-Schwierigkeit und Upgrades ein.
@@ -563,6 +576,8 @@ function applyModifiers() {
   CONFIG.events.jamChance += 0.01 * lvl;
   CONFIG.maxProblems += Math.floor(lvl / W.extraProblemEvery);
   CONFIG.door.lateMax += Math.floor(lvl / 5);
+  if (!blk().phones) CONFIG.events.phone.chance = 0;
+  if (blk().nervous) CONFIG.kids.spawnInterval /= blk().nervous;
   // tägliche Upgrades
   CONFIG.player.speed *= 1 + 0.2 * upLevel('shoes');
   CONFIG.deskStashMax += 3 * upLevel('pult');
@@ -653,7 +668,9 @@ function newLesson() {
   if (G.exam) { G.subject = EXAM_SUBJECT; G.formIdx = G.formSel = 0; }
   const DE = CONFIG.doorEvents;
   G.npc = null; G.npcProg = 0; G.tutor = null; G.trainerAt = null; G.heatT = 0;
-  G.doorEvAt = RUN && !G.exam && (RUN.week > 1 || RUN.day >= DE.fromDay) && Math.random() < DE.chance ? rand(DE.from, DE.to) : null;
+  G.doorEvAt = RUN && !G.exam && Math.random() < blk().doors ? rand(DE.from, DE.to) : null;
+  if (RUN && !G.exam && RUN.trainerLesson === RUN.lesson) G.trainerAt = rand(25, 60);
+  G.printerOn = G.exam && has('netprint'); G.printerOff = null; G.formFx = 0;
   // Zuspätkommer: Platz bleibt leer, später klopft es
   const late = randInt(CONFIG.door.lateMin, CONFIG.door.lateMax);
   const pool = G.kids.slice();
@@ -809,7 +826,10 @@ function tap() {
   if (tg.type === 'board') { if (G.carry > clipCap()) handsFull(); return; }
   if (tg.type === 'door') { letIn(); return; }
   if (tg.type === 'npc') { npcTap(); return; }
-  if (tg.type === 'copier') { useCopier(); return; }
+  if (tg.type === 'copier') {
+    if (G.exam) { if (G.printerOn) G.printerOff = { t: 0 }; return; }   // Klassenarbeit: Drucker ausschalten (E halten)
+    useCopier(); return;
+  }
   if (tg.type === 'desk') { G.deskHold = { t: 0, took: 0 }; return; }   // Entscheidung fällt beim Loslassen oder Halten
   const k = tg.kid;
   if (k.state === 'wait') {
@@ -827,7 +847,12 @@ function tap() {
   if (k.state === 'cheat') { backToWork(k, 3); reward(k); float(sx(k.x), sy(k.y) - 80, 'ERWISCHT', PAL.orange); sfx.scold(); return; }
   if (k.state === 'question') {
     if (has('tutor') && !G.exam) { G.tutor = { k, t: 0 }; return; }        // Lernbegleitung: halten = am Platz erklären, tippen = vertrösten
-    k.t = Math.max(0, k.t - CONFIG.events.question.soothe); float(sx(k.x), sy(k.y) - 80, 'GLEICH!', '#9fd39a'); sfx.calm(); return;
+    const gain = Math.min(k.t, CONFIG.events.question.soothe);
+    k.t -= gain;
+    if (G.exam && gain >= CONFIG.events.question.patience / 3 && (k.qs = (k.qs || 0) + 1) >= CONFIG.week.examQuestionSoothes) {   // Klassenarbeit: gibt auf
+      k.qs = 0; backToWork(k, 2); float(sx(k.x), sy(k.y) - 80, 'GEHT SCHON', '#9fd39a'); puff(sx(k.x), sy(k.y) - 52, '#9fd39a', 5); sfx.done(); return;
+    }
+    float(sx(k.x), sy(k.y) - 80, 'GLEICH!', '#9fd39a'); sfx.calm(); return;
   }
   if (k.state === 'fidget') { backToWork(k, 2); puff(sx(k.x), sy(k.y) - 44, PAL.white, 4); sfx.calm(); return; }
   if (isProblem(k)) {
@@ -857,7 +882,7 @@ function helperTick() {
   const target = G.kids.filter(k => k.state === 'wait' && !k.helperComing).sort((a, b) => b.t - a.t)[0];
   if (!target) return;
   const h = G.kids.filter(k => k !== target && !k.job && (k.state === 'work' || k.state === 'fidget'))
-    .sort((a, b) => Math.hypot(a.x - 3, a.y - 2) - Math.hypot(b.x - 3, b.y - 2))[0];
+    .sort((a, b) => (a.i === 0 ? -99 : Math.hypot(a.x - 3, a.y - 2)) - (b.i === 0 ? -99 : Math.hypot(b.x - 3, b.y - 2)))[0];   // am liebsten der Klassensprecher (vorne links)
   if (!h) return;
   target.helperComing = true;
   h.state = 'walk'; h.wx = h.x; h.wy = h.y;
@@ -1066,6 +1091,7 @@ function useGong() {
 function selectForm(i) {
   if (G.writing) return;
   G.formSel = (i + CONFIG.forms.length) % CONFIG.forms.length;
+  if (!inBoardZone()) G.formFx = 1.6;                 // Denkblase über der Lehrkraft
   sfx.select();
 }
 
@@ -1135,6 +1161,16 @@ function update(dt) {
   /* --- Tür-Ereignisse --- */
   npcTick(dt, hold);
 
+  /* --- Netzwerkdrucker in der Klassenarbeit: brummt, bis man ihn ausschaltet --- */
+  if (G.printerOff) {
+    if (!hold || !atCopier() || !G.printerOn) G.printerOff = null;
+    else {
+      if (Math.random() < dt * 8) sfx.fiddle();
+      if ((G.printerOff.t += dt) >= W.printerNoise.offHold) { G.printerOn = false; G.printerOff = null; float(sx(1.1), sy(8.5) - 60, 'AUS', PAL.white); sfx.done(); }
+    }
+  }
+  if (G.printerOn) { G.copier.shake = Math.max(G.copier.shake, 0.05); if (Math.random() < dt * 0.8) sfx.print(); }
+
   /* --- Tafel schreiben (E halten) --- */
   const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (G.supply < 99.5 || G.formSel !== G.formIdx);
   if (hold && canWrite) {
@@ -1202,7 +1238,7 @@ function update(dt) {
   if (keys.has('KeyS') || keys.has('ArrowDown')) my += 1;
   P.moving = false;
   if (touch.active) { mx = touch.x; my = touch.y; }
-  if (!G.writing && !G.give && !G.grab && !G.explaining && !G.deskHold && !G.tutor && !(G.npcProg > 0) && (mx || my)) {
+  if (!G.writing && !G.give && !G.grab && !G.explaining && !G.deskHold && !G.tutor && !G.printerOff && !(G.npcProg > 0) && (mx || my)) {
     const l = Math.hypot(mx, my), v = CONFIG.player.speed * dt;
     const nx = P.x + mx / l * v, ny = P.y + my / l * v, A = CONFIG.player.cornerAssist;
     const offs = [0.1, 0.2, 0.3, A].flatMap(o => [o, -o]);
@@ -1244,7 +1280,7 @@ function update(dt) {
     C.rattle -= dt; C.shake = 0.1;
     if (C.rattle <= 0) { C.jam = true; C.hits = 0; sfx.jam(); techCall(); }
   }
-  if (CC.auto && !(C.busy > 0) && !C.printing && !C.jam && !C.jobDone && C.cool <= 0 && C.tray === 0) { C.printing = true; C.warm = 0; C.t = 0; }
+  if (CC.auto && !G.exam && !(C.busy > 0) && !C.printing && !C.jam && !C.jobDone && C.cool <= 0 && C.tray === 0) { C.printing = true; C.warm = 0; C.t = 0; }
   C.busy = Math.max(0, (C.busy || 0) - dt);
   if (C.printing && !C.jam && !(C.rattle > 0) && !(C.busy > 0)) {
     if (C.warm < CC.warmup) C.warm += dt;
@@ -1359,7 +1395,7 @@ function update(dt) {
     G.forecastKid = null;
     G.spawnT = K.spawnInterval * (1 + rand(-1, 1) * K.spawnJitter);
   }
-  if (G.exam && (G.cheatT -= dt) <= 0) {                       // Klassenarbeit: jemand linst zum Nachbarn
+  if (G.exam && (G.cheatT -= dt * (G.printerOn ? W.printerNoise.cheatMult : 1)) <= 0) {                       // Klassenarbeit: jemand linst zum Nachbarn
     if (openProblems() < limit) {
       const c = G.kids.filter(k => k.state === 'work' && !inPresence(k) && k.calm <= 0);
       if (c.length) { const k = pick(c); k.state = 'cheat'; k.t = 0; k.cheatSide = k.c === 0 ? 1 : k.c === 3 ? -1 : (Math.random() < 0.5 ? -1 : 1); }
@@ -1376,7 +1412,7 @@ function update(dt) {
   }
   const workingKids = () => G.kids.filter(k => k.state === 'work' && k.calm <= 0);
   if ((G.qT -= dt) <= 0) {
-    if (openProblems() < limit && G.supply > 0) { const c = workingKids(); if (c.length) { const k = pick(c); k.state = 'question'; k.t = 0; } }
+    if (openProblems() < limit && G.supply > 0) { const c = workingKids(); if (c.length) { const k = pick(c); k.state = 'question'; k.t = 0; k.qs = 0; } }
     G.qT = E.question.every * (1 + rand(-1, 1) * E.question.jitter);
   }
   if ((G.wcT -= dt) <= 0) {
@@ -1397,10 +1433,11 @@ function update(dt) {
   const dT = G.supply <= 0 && !CONFIG.board.review ? D.boardEmpty : 0;
   const dK = cnt('wait') * D.waiting;
   const dD = G.kids.filter(k => k.state === 'knock').reduce((s, k) => s + (k.t > DR.patience ? D.knockLoud : D.knock), 0) + cnt('wc') * D.waiting + (G.npcDrain || 0);
-  G.drainNow = { stoerer: dS, tafel: dT, kopierer: dK, tuer: dD };
-  G.order -= (dS + dT + dK + dD) * dt;
-  G.loss.stoerer += dS * dt; G.loss.tafel += dT * dt; G.loss.kopierer += dK * dt; G.loss.tuer += dD * dt;
-  if (dS + dT + dK + dD === 0) G.order += CONFIG.order.recover * dt;
+  const dP = G.printerOn ? W.printerNoise.drain : 0;
+  G.drainNow = { stoerer: dS, tafel: dT, kopierer: dK + dP, tuer: dD };
+  G.order -= (dS + dT + dK + dP + dD) * dt;
+  G.loss.stoerer += dS * dt; G.loss.tafel += dT * dt; G.loss.kopierer += (dK + dP) * dt; G.loss.tuer += dD * dt;
+  if (dS + dT + dK + dP + dD === 0) G.order += CONFIG.order.recover * dt;
   G.order = clamp(G.order, 0, 100);
   G.orderInt += G.order * dt;
 
@@ -1425,6 +1462,7 @@ function update(dt) {
 
   /* --- Effekte --- */
   G.doorOpen = Math.max(0, G.doorOpen - dt);
+  G.formFx = Math.max(0, (G.formFx || 0) - dt);
   G.gongFx = Math.max(0, G.gongFx - dt);
   G.floats.forEach(f => f.t += dt); G.floats = G.floats.filter(f => f.t < 1);
   G.parts.forEach(p => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g ?? 60 * U) * dt; });
@@ -1448,6 +1486,8 @@ function endLesson() {
   G.taler += bonus;
   const NW = CONFIG.doorEvents.news, cakeWon = G.cake && avg >= NW.cakeOrder;
   if (cakeWon) G.taler += NW.cakeBonus;
+  if (blk().taler) G.taler = Math.round(G.taler * blk().taler);
+  RUN.stars = (RUN.stars || 0) + stars;
   totalTaler += G.taler;
   RUN.taler += G.taler;
   RUN.weekLearn += G.learn;
@@ -1458,7 +1498,7 @@ function endLesson() {
   const lastOfDay = RUN.lesson >= W.lessonsPerDay - 1, lastOfWeek = lastOfDay && RUN.day >= W.days.length - 1;
   RUN.queue = lastOfWeek ? ['exam'] : lastOfDay ? ['shop', ...(RUN.day === W.changerAfterDay ? ['choice'] : []), 'nextDay'] : ['lesson'];
   const examNext = RUN.queue[0] === 'lesson' && RUN.day === W.days.length - 1 && RUN.lesson + 1 === W.lessonsPerDay - 1;
-  const goText = examNext ? 'Weiter: Klassenarbeit!' : { lesson: 'Weiter: nächste Stunde', shop: 'Weiter: Feierabend', exam: 'Weiter: Notenspiegel' }[RUN.queue[0]];
+  const goText = examNext ? `Weiter: ${examName()}!` : { lesson: 'Weiter: nächste Stunde', shop: 'Weiter: Feierabend', exam: 'Weiter: Notenspiegel' }[RUN.queue[0]];
 
   const L = G.loss, sum = L.stoerer + L.tafel + L.kopierer + L.tuer + L.fehl;
   const rows = [['Störer', L.stoerer], ['Warten auf Blätter', L.kopierer], ['Tafel leer', L.tafel], ['Tür', L.tuer], ['Falsch ermahnt', L.fehl]]
@@ -1476,7 +1516,7 @@ function endLesson() {
     ${cakeWon ? `<p>Kuchen im Lehrerzimmer: <b style="color:var(--ink)">+${NW.cakeBonus} Taler</b></p>` : G.cake ? '<p>Kuchen gab es leider nur bei ruhiger Klasse.</p>' : ''}
     ${G.trainerResult ? `<p>Besuch vom Ausbilder: <b style="color:var(--ink)">${G.trainerResult > 0 ? '+' : ''}${G.trainerResult} Taler</b></p>` : ''}
     <p>Taler: <b style="color:var(--gold)">+${G.taler}</b>${bonus ? ` (inkl. ${bonus} Sterne-Bonus)` : ''} → ${RUN.taler}</p>
-    <p style="margin-top:8px;color:var(--ink)">Stoff für die Klassenarbeit am Freitag: ${Math.round(RUN.weekLearn)} / ${target} Lernpunkte (Klasse)</p>
+    <p style="margin-top:8px;color:var(--ink)">Stoff für ${blk().exam === 'Test' ? 'den Test' : 'die ' + examName()} am Freitag: ${Math.round(RUN.weekLearn)} / ${target} Lernpunkte (Klasse)</p>
     <div class="weekbar"><i style="width:${wp}%"></i></div>
     <p style="margin-top:8px;color:var(--ink)">Woran lag's?</p>
     <div class="loss">${sum > 0.5 ? rows : '<p>Nichts verloren. Respekt!</p>'}</div>
@@ -1549,20 +1589,42 @@ function showExam() {
   const dist = [1, 2, 3, 4, 5, 6].map(n => grades.filter(g => g.grade === n).length);
   const rows = grades.map(g => `<div class="grade"><span class="gn">${g.name}</span><span class="gb"><i style="width:${Math.min(100, g.learn / (examTarget() / 12) / 1.7 * 100)}%"></i></span><span class="gg" style="color:${colors[g.grade]}">${g.grade}</span></div>`).join('');
   const bars = dist.map((c, i) => `<div class="db"><i style="height:${c * 9}px;background:${colors[i + 1]}"></i><span>${i + 1}</span></div>`).join('');
+  RUN.grades = RUN.grades || []; RUN.grades[RUN.week - 1] = avg;
+  const done = pass && isFinalWeek();
   if (pass) {
     if (RUN.week > best) { best = RUN.week; try { localStorage.setItem('kig_best_weeks', String(best)); } catch (e) { /* egal */ } }
-    RUN.queue = [...(reward ? ['choice'] : []), 'shop', 'nextWeek'];
+    RUN.queue = done ? ['final'] : [...(reward ? ['choice'] : []), 'shop', 'nextWeek'];
     sfx.done();
   } else { RUN.queue = ['over']; sfx.wrong(); }
   showCard(`
-    <h2>Notenspiegel – Woche ${RUN.week}</h2>
+    <h2>Notenspiegel – ${examName()} <span style="color:var(--muted);font-size:.7em">Woche ${RUN.week} von ${CONFIG.week.block.length}</span></h2>
     <p style="color:var(--ink)">Klassenschnitt <b style="color:${colors[Math.round(avg)]}">${avg.toFixed(1).replace('.', ',')}</b> (${words[Math.round(avg)]})</p>
     <div class="dist">${bars}</div>
     <div class="grades">${rows}</div>
-    <p class="test">Note = eigener Lernstand der Woche × Konzentration in der Klassenarbeit (Spicken, Trödeln und Klogänge kosten Konzentration).</p>
-    ${pass ? `<p>Woche ${RUN.week} geschafft! Nächste Woche wird es etwas wilder.${reward ? ' Für den guten Schnitt darfst du dir etwas Neues fürs Klassenzimmer aussuchen.' : ''}</p>`
+    <p class="test">Note = eigener Lernstand der Woche × Konzentration in der Arbeit (Spicken, Trödeln und Klogänge kosten Konzentration).</p>
+    ${done ? `<p>Zwischenprüfung bestanden! Der Block ist geschafft.</p>`
+      : pass ? `<p>Woche ${RUN.week} geschafft! Nächste Woche: <b style="color:var(--gold)">${CONFIG.week.block[RUN.week].name}</b>.${reward ? ' Für den guten Schnitt darfst du dir etwas Neues fürs Klassenzimmer aussuchen.' : ''}</p>`
            : `<p>Ein Schnitt schlechter als 4,0 … Die Schulleitung bittet zum Gespräch. Du hast ${RUN.week - 1} ${RUN.week - 1 === 1 ? 'Woche' : 'Wochen'} geschafft. Rekord: ${best}.</p>`}
-    <p class="go">${pass ? 'Weiter' : 'Neuer Versuch'} (Enter)</p>`);
+    <p class="go">${done ? 'Zum Zeugnis' : pass ? 'Weiter' : 'Neuer Versuch'} (Enter)</p>`);
+}
+// Abschluss des Blocks: Zeugnis
+function showFinal() {
+  state = 'exam';
+  const g = RUN.grades.filter(v => v !== undefined), avg = g.reduce((a, b) => a + b, 0) / g.length;
+  const words = ['', 'sehr gut', 'gut', 'befriedigend', 'ausreichend', 'mangelhaft', 'ungenügend'];
+  let bestGrade = 9; try { bestGrade = +(localStorage.getItem('kig_best_grade') || 9); } catch (e) { /* egal */ }
+  const rec = avg < bestGrade;
+  if (rec) try { localStorage.setItem('kig_best_grade', avg.toFixed(2)); } catch (e) { /* egal */ }
+  const rows = CONFIG.week.block.map((b, i) => `<span style="text-align:left;color:var(--ink)">${i + 1}. ${b.name}</span><span style="color:var(--muted)">${b.exam}</span><b style="text-align:right">${g[i] !== undefined ? g[i].toFixed(1).replace('.', ',') : '–'}</b>`).join('');
+  sfx.done();
+  RUN.queue = ['over'];
+  showCard(`
+    <h2>Zeugnis – Berufsschulblock IM24</h2>
+    <p style="color:var(--ink)">Gesamtschnitt der Klasse: <b style="color:var(--gold)">${avg.toFixed(1).replace('.', ',')}</b> (${words[Math.round(avg)]})${rec ? ' · <b style="color:#9fd39a">Neuer Rekord!</b>' : ` · Bester Schnitt bisher: ${bestGrade.toFixed(1).replace('.', ',')}`}</p>
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 14px;max-width:380px;margin:8px auto">${rows}</div>
+    <p>Sterne gesammelt: <b style="color:var(--ink)">${RUN.stars || 0}</b> · Taler verdient: <b style="color:var(--ink)">${totalTaler}</b> · Game-Changer: <b style="color:var(--ink)">${Object.keys(RUN.ch).length}</b></p>
+    <p>Die IM24 sagt danke. Schöne Ferien!</p>
+    <p class="go">Zum Start (Enter)</p>`);
 }
 
 // „Weiter“ auf allen Zwischenbildschirmen
@@ -1578,6 +1640,7 @@ function openPrep() {
       <span class="d">${p.desc}</span></button>`;
   }).join('') : '';
   showCard(`
+    ${RUN.day === 0 ? `<div class="weekintro"><b>Woche ${RUN.week} von ${CONFIG.week.block.length}: ${blk().name}</b><br>${blk().news}<br><span style="color:var(--muted)">Freitag: ${examName()}</span></div>` : ''}
     <h2>Vorbereitung für ${CONFIG.week.days[RUN.day]}</h2>
     <p style="color:var(--ink)">${T0.name} macht wie immer: <b style="color:var(--gold)">${routine.name}</b>. <span style="color:var(--muted)">${routine.desc}</span></p>
     ${picks ? `<p>Dazu kannst du <b style="color:var(--gold)">${picks - chosen} von ${picks}</b> ${picks === 1 ? 'Sache' : 'Sachen'} vorbereiten:</p><div class="shop">${items}</div>`
@@ -1604,6 +1667,7 @@ function advance() {
     case 'exam': showExam(); break;
     case 'nextDay': RUN.day++; RUN.lesson = 0; newDay(); openPrep(); break;
     case 'nextWeek': RUN.week++; RUN.day = 0; RUN.lesson = 0; RUN.weekLearn = 0; RUN.kidLearn.fill(0); RUN.kidFocus.fill(1); newDay(); openPrep(); break;
+    case 'final': showFinal(); break;
     case 'over': RUN = null; titleScreen(); break;
     default: break;
   }
@@ -1619,7 +1683,7 @@ function updateHud() {
   $('barFill').style.background = o > 60 ? 'var(--order)' : o > 30 ? 'var(--warn)' : 'var(--bad)';
   const left = Math.max(0, Math.ceil(CONFIG.lessonSeconds - G.t));
   $('clock').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-  $('phase').textContent = RUN ? `W${RUN.week} ${CONFIG.week.days[RUN.day].slice(0, 2)} · Std. ${RUN.lesson + 1}/${CONFIG.week.lessonsPerDay} · ${G.exam ? 'KLASSENARBEIT' : form().label}${G.gongLeft ? ' · G: Klangschale ×' + G.gongLeft : ''}` : '';
+  $('phase').textContent = RUN ? `W${RUN.week} ${CONFIG.week.days[RUN.day].slice(0, 2)} · Std. ${RUN.lesson + 1}/${CONFIG.week.lessonsPerDay} · ${G.exam ? examName().toUpperCase() : form().label}${G.gongLeft ? ' · G: Klangschale ×' + G.gongLeft : ''}` : '';
   const LS = CONFIG.learning.stars, lmax = LS[2] * 1.15;
   $('lfill').style.width = Math.min(100, G.learn / lmax * 100) + '%';
   LS.forEach((v, i) => { $('tick' + i).style.left = (v / lmax * 100) + '%'; });
@@ -1661,7 +1725,7 @@ function titleScreen() {
     <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
       <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
     ${saveSlotsHtml('load') ? `<p style="color:var(--ink);margin-top:6px">Weiterspielen</p>${saveSlotsHtml('load')}` : ''}
-    <p style="color:var(--ink)">Eine Woche, 2 Stunden pro Tag, am Freitag Klassenarbeit. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
+    <p style="color:var(--ink)">Ein Berufsschulblock: 4 Wochen, 2 Stunden pro Tag, jeden Freitag eine Arbeit, zum Schluss die Zwischenprüfung. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
     <p class="rules">
        <b style="color:#c9c6d0">Graue Blase</b>: wird unruhig. Stell dich in die Nähe oder drück E.<br>
        <b style="color:#f7d154">Gelbe Blase</b>: trödelt. Hingehen, E. Nach 6 s wird es <b style="color:#e8534a">laut</b>.<br>
@@ -1670,7 +1734,7 @@ function titleScreen() {
        <b style="color:#5ca7e8">Blaue Blase</b>: braucht ein Blatt. Kopierer unten links: wärmt auf, druckt bis zu 6.<br>
        1 Blatt in der Hand gibst du sofort, aus dem Stapel musst du E halten.<br>
        Am Pult: E tippen = alles ablegen bzw. 1 Blatt nehmen · E halten = Blatt für Blatt aufnehmen.<br>
-       <b style="color:#f29a4e">Tür</b> unten rechts: Zuspätkommer klopfen. Hingehen, E. Ab Dienstag auch Besuch: Störenfried rauswerfen (E), Kollegen-Frage beantworten (E halten), Neuigkeit anhören (E).<br>
+       <b style="color:#f29a4e">Tür</b> unten rechts: Zuspätkommer klopfen. Hingehen, E. Ab Woche 2 auch Besuch: Störenfried rauswerfen (E), Kollegen-Frage beantworten (E halten), Neuigkeit anhören (E).<br>
        <b style="color:#9fd39a">?</b> Frage: an der Tafel E halten (Lernbonus). Beim Azubi E = vertrösten. · <b style="color:#5cc8c0">WC</b>: beim Azubi E<br>
        <b style="color:#b07ce8">Handy</b> vibriert: schnell hin und E. Klingelt es schon: E halten.<br>
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.</p>
