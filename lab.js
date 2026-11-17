@@ -153,6 +153,7 @@ function groupsOfKids() {
   const cols = form().groupSheets === 2 ? [[0, 1], [2, 3]] : CONFIG.kids.cols.map((_, c) => [c]);
   return cols.map(cs => G.kids.filter(k => cs.includes(k.c)));
 }
+const labLevel = () => CONFIG.lab.levels[G.formIdx] || CONFIG.lab.levels[1];
 const pairMult = k => (isLab() && k.partner && (k.partner.state === 'work' || k.partner.state === 'fidget') ? CONFIG.lab.pairBonus : 1);
 
 const LAB_SUBJECTS = [
@@ -214,7 +215,7 @@ function labFixHold(dt, hold) {
     }
   } else if (H.kind === 'quit') {
     if (!atPlant() || !P.estop) { G.labHold = null; return; }
-    if ((H.t += dt) >= LB.test.quitHold) { P.estop = false; P.t = LB.test.duration * 0.6; float(sx(10), sy(3.9) - 80, 'QUITTIERT', '#7cc47a'); sfx.start(); G.labHold = null; G.needRelease = true; }
+    if ((H.t += dt) >= LB.test.quitHold) { P.estop = false; P.t = (P.dur || labLevel().dur) * 0.6; float(sx(10), sy(3.9) - 80, 'QUITTIERT', '#7cc47a'); sfx.start(); G.labHold = null; G.needRelease = true; }
   } else if (H.kind === 'help') {
     if (!atPlant() || P.estop || !P.cur) { G.labHold = null; return; }
     H.t += dt;
@@ -231,13 +232,14 @@ function labTick(dt, hold, limit) {
   labFixHold(dt, hold);
   if (G.exam) return;
   // Ereignisse
-  if ((G.pcT -= dt) <= 0) { const k = labPickWorker(limit); if (k) { k.state = 'pc'; k.t = 0; sfx.buzz(); } G.pcT = LB.pc.every * (1 + rand(-1, 1) * LB.pc.jitter); }
-  if ((G.plcT -= dt) <= 0) { const k = labPickWorker(limit); if (k) { k.state = 'plc'; k.t = 0; } G.plcT = LB.plc.every * (1 + rand(-1, 1) * LB.plc.jitter); }
+  const lv = labLevel(), edt = dt * lv.ev;
+  if ((G.pcT -= edt) <= 0) { const k = labPickWorker(limit); if (k) { k.state = 'pc'; k.t = 0; sfx.buzz(); } G.pcT = LB.pc.every * (1 + rand(-1, 1) * LB.pc.jitter); }
+  if ((G.plcT -= edt) <= 0) { const k = labPickWorker(limit); if (k) { k.state = 'plc'; k.t = 0; } G.plcT = LB.plc.every * (1 + rand(-1, 1) * LB.plc.jitter); }
   if ((G.testT -= dt) <= 0) {
     const busyPairs = new Set(P.queue.map(k => k.pair).concat(P.cur ? [P.cur.pair] : []));
-    const c = G.kids.filter(k => k.state === 'work' && !busyPairs.has(k.pair) && G.supply > 0);
-    if (c.length && openProblems() < limit + 1) { const k = pick(c); k.state = 'test'; k.t = 0; P.queue.push(k); float(sx(k.x), sy(k.y) - 80, 'TESTEN!', '#5cc8c0'); }
-    G.testT = LB.test.every * (1 + rand(-1, 1) * LB.test.jitter);
+    const c = G.kids.filter(k => k.state === 'work' && !busyPairs.has(k.pair));
+    if (c.length && !(G.labPause > 0)) { const k = pick(c); k.state = 'test'; k.t = 0; P.queue.push(k); float(sx(k.x), sy(k.y) - 80, 'TESTEN!', '#5cc8c0'); }
+    G.testT = lv.every / 2 * (1 + rand(-1, 1) * LB.test.jitter);                  // zwei Seiten → im Schnitt alle every/2 s ein Testwunsch
   }
   if (G.netAt !== null && G.t >= G.netAt) {
     G.netAt = null; G.netDown = true; G.netIdleT = LB.net.idleEvery;
@@ -256,18 +258,24 @@ function labTick(dt, hold, limit) {
   if (!P.cur && !P.estop && P.queue.length) {
     const k = P.queue.shift(), S = RD().plantSpot;
     k.state = 'walk'; k.wx = k.x; k.wy = k.y; k.job = { kind: 'test', stage: 'go' };
-    k.path = findPath(k.x, k.y, S.x, S.y); P.cur = k; P.t = 0;
+    k.path = findPath(k.x, k.y, S.x, S.y); P.cur = k; P.t = 0; P.dur = labLevel().dur; P.bonus = labLevel().bonus; P.helped = false;
   }
   if (P.cur && P.cur.job && P.cur.job.stage === 'run' && !P.estop) {
     const helping = G.labHold && G.labHold.kind === 'help';
+    if (helping) P.helped = true;
     P.t += dt * (helping ? LB.test.helpMult : 1);
-    if (P.t >= LB.test.duration) {
+    if (P.t >= (P.dur || lv.dur)) {
       const k = P.cur;
-      if (!P.hadStop && Math.random() < LB.test.estopChance) { P.estop = true; P.hadStop = true; sfx.jam(); float(sx(10), sy(3.9) - 80, 'NOT-AUS!', PAL.red); }
+      if (!P.hadStop && Math.random() < lv.estop) { P.estop = true; P.hadStop = true; sfx.jam(); float(sx(10), sy(3.9) - 80, 'NOT-AUS!', PAL.red); }
+      else if (Math.random() < lv.fail * (P.helped ? LB.test.helpFail : 1)) {          // Test schlägt fehl → Fehlersuche am Platz
+        P.hadStop = false; P.helped = false; k.debug = true;
+        float(sx(10), sy(3.9) - 80, 'FEHLER!', PAL.orange); sfx.wrong();
+        k.job.stage = 'home'; k.path = findPath(k.wx, k.wy, k.x, k.y); P.cur = null;
+      }
       else {
-        const b = LB.test.bonus;
+        const b = P.bonus || lv.bonus;
         G.learn += b; k.learn = (k.learn || 0) + b / 2; if (k.partner) k.partner.learn = (k.partner.learn || 0) + b / 2;
-        G.taler += CONFIG.taler.perTask; P.hadStop = false;
+        G.taler += CONFIG.taler.perTask; P.hadStop = false; P.helped = false;
         float(sx(10), sy(3.9) - 80, 'TEST OK +' + b, '#7cc47a'); puff(sx(k.wx), sy(k.wy) - 50, '#7cc47a', 8); sfx.done();
         k.job.stage = 'home'; k.path = findPath(k.wx, k.wy, k.x, k.y); P.cur = null;
       }
@@ -278,7 +286,10 @@ function labTick(dt, hold, limit) {
 function labJobArrive(k) {
   const j = k.job;
   if (j.stage === 'go') { j.stage = 'run'; k.face = 'up'; return; }
-  if (j.stage === 'home') { k.job = null; backToWork(k, 2); }
+  if (j.stage === 'home') {
+    k.job = null; backToWork(k, 2);
+    if (k.debug) { k.debug = false; k.state = 'question'; k.t = 0; float(sx(k.x), sy(k.y) - 80, 'FEHLERSUCHE', PAL.orange); }   // Fehler suchen: am Platz erklären
+  }
 }
 // Netzwerk-Abzug und Ordnung
 const labDrain = () => (isLab() && G.netDown ? CONFIG.lab.net.drain : 0);

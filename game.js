@@ -123,10 +123,18 @@ const CONFIG = {
     pc:   { firstAt: 14, every: 26, jitter: 0.4, patience: 14, hold: 1.5 },        // PC hängt → am Platz E halten
     plc:  { firstAt: 22, every: 32, jitter: 0.4, patience: 12 },                   // SPS im Stopp / Kabel → E tippen
     net:  { chance: 0.5, from: 30, to: 70, hold: 2.0, drain: 1.0, idleEvery: 4 },  // Netzwerk weg → am Netzwerkschrank E halten
-    test: { firstAt: 16, every: 15, jitter: 0.4, patience: 28, duration: 7, helpMult: 2.5, bonus: 4, estopChance: 0.2, quitHold: 1.0 },
+    test: { firstAt: 12, jitter: 0.4, patience: 28, helpMult: 2.5, helpFail: 0.4, quitHold: 1.0 },
+    // Schwierigkeit am Beamer: seat = Lernen am Platz, bonus/dur = Test, fail/estop = Pannen, ev = Häufigkeit von PC/SPS/Fragen, every = Testwünsche
+    levels: [
+      { name: 'LEICHT', label: 'Schwierigkeit leicht', seat: 0.4,  noise: 0.8, bonus: 6,  dur: 5, fail: 0.10, estop: 0.05, ev: 0.7, every: 12 },
+      { name: 'MITTEL', label: 'Schwierigkeit mittel', seat: 0.55, noise: 1.0, bonus: 10, dur: 7, fail: 0.20, estop: 0.12, ev: 1.0, every: 14 },
+      { name: 'SCHWER', label: 'Schwierigkeit schwer', seat: 0.75, noise: 1.2, bonus: 16, dur: 9, fail: 0.30, estop: 0.20, ev: 1.4, every: 16 },
+    ],
+    switchWrite: 0.8,          // E halten am Beamer zum Umschalten
+    switchPause: 2,            // danach lädt der Beamer, die Klasse wartet
+    sheetMult: 2.5,            // Datenblatt-Wünsche kommen seltener
     pairBonus: 1.15,           // Paar arbeitet zusammen → lernt schneller
     spawnMult: 1.25,           // Störer etwas seltener
-    writeMult: 0.5,            // Beamer: Aufgabe zeigen geht schneller als Anschreiben
     robot: { speed: 1.3, stuckChance: 0.25 },
   },         // Klemmbrett: so viele Blätter darf man beim Anschreiben halten
   tech: { fix: 6 },                                   // Azubi-Technikteam: Reparaturzeit
@@ -614,9 +622,9 @@ function applyModifiers() {
   if (has('tables')) { CONFIG.forms[2].groupSheets = 2; CONFIG.forms[2].noise += 0.2; }
   if (isLab()) {                                              // SPS-Labor: Beamer statt Tafel, Aufgaben statt Arbeitsformen
     CONFIG.board.beamer = true;
-    CONFIG.forms.forEach(f => { f.write *= CONFIG.lab.writeMult; });
-    [['LEICHT', 'Aufgabe leicht'], ['MITTEL', 'Aufgabe mittel'], ['SCHWER', 'Aufgabe schwer']].forEach(([n, l], i) => { CONFIG.forms[i].name = n; CONFIG.forms[i].label = l; });
+    CONFIG.lab.levels.forEach((lv, i) => Object.assign(CONFIG.forms[i], { name: lv.name, label: lv.label, write: CONFIG.lab.switchWrite, learn: lv.seat, noise: lv.noise, sheets: false, groupSheets: 0 }));
     CONFIG.kids.spawnInterval *= CONFIG.lab.spawnMult;
+    CONFIG.copier.requestInterval *= CONFIG.lab.sheetMult; CONFIG.copier.firstRequestAt *= 2;
   }
   if (has('phonebox')) { CONFIG.events.phone.chance = 0; CONFIG.kids.spawnInterval *= 0.9; }
 }
@@ -686,7 +694,7 @@ function newLesson() {
   };
   // Vorbereitung des Tages
   if (prepOn('sheets')) G.stash = Math.min(2, CONFIG.deskStashMax);
-  if (prepOn('board') && RUN.lesson === 0 && !G.exam) { G.formIdx = G.formSel = 2; G.prepGroups = true; }
+  if (prepOn('board') && RUN.lesson === 0 && !G.exam) { G.formIdx = G.formSel = 2; G.prepGroups = !isLab(); }
   if (G.exam) { G.subject = EXAM_SUBJECT; G.formIdx = G.formSel = 0; }
   if (typeof RD === 'function') { G.p.x = RD().start.x; G.p.y = RD().start.y; }
   if (isLab()) labInitLesson();
@@ -1154,6 +1162,12 @@ function selectForm(i) {
 }
 
 function finishWriting() {
+  if (isLab()) {                                     // Beamer: nur Schwierigkeit umschalten, dann kurz laden
+    G.formIdx = G.formSel; G.writeProg = 0; G.writing = false; G.needRelease = true; G.nextSubject = null;
+    G.subject = pick(teacherSubjects()); G.labPause = CONFIG.lab.switchPause; sfx.done();
+    float(sx(10), sy(0) - 60, form().name, '#9fd3f0');
+    return;
+  }
   G.formIdx = G.formSel;
   G.supply = 100; G.writeProg = 0; G.writing = false; G.needRelease = true;
   G.subject = G.nextSubject || pick(teacherSubjects()); G.nextSubject = null;
@@ -1229,7 +1243,7 @@ function update(dt) {
   if (G.printerOn) { G.copier.shake = Math.max(G.copier.shake, 0.05); if (Math.random() < dt * 0.8) sfx.print(); }
 
   /* --- Tafel schreiben (E halten) --- */
-  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (G.supply < 99.5 || G.formSel !== G.formIdx);
+  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
   if (hold && canWrite) {
     if (!G.writing && G.writeProg === 0) {
       G.nextSubject = pick(teacherSubjects().filter(s => s !== G.subject));
@@ -1315,6 +1329,7 @@ function update(dt) {
   const present = G.kids.filter(isSeated).length || 1;
   const working = G.kids.filter(k => k.state === 'work' || k.state === 'fidget').length;
   if (G.exam) { /* Klassenarbeit: keine Tafel */ }
+  else if (isLab()) { G.supply = 100; G.labPause = Math.max(0, (G.labPause || 0) - dt); }   // Labor: kein Aufgabenvorrat
   else if (G.supply > 0) {
     G.supply -= working / present * 100 / form().duration * dt;
     if (G.supply <= 0) {
@@ -1467,7 +1482,7 @@ function update(dt) {
     G.sheetT = CC.requestInterval * (1 + rand(-1, 1) * CC.requestJitter);
   }
   const workingKids = () => G.kids.filter(k => k.state === 'work' && k.calm <= 0);
-  if ((G.qT -= dt) <= 0) {
+  if ((G.qT -= dt * (isLab() ? labLevel().ev : 1)) <= 0) {
     if (openProblems() < limit && G.supply > 0) { const c = workingKids(); if (c.length) { const k = pick(c); k.state = 'question'; k.t = 0; k.qs = 0; } }
     G.qT = E.question.every * (1 + rand(-1, 1) * E.question.jitter);
   }
@@ -1500,7 +1515,7 @@ function update(dt) {
 
   /* --- Lernfortschritt --- */
   const L = CONFIG.learning;
-  const quality = Math.min(1, G.order / L.fullAt) * (G.supply <= 0 ? 0.3 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
+  const quality = Math.min(1, G.order / L.fullAt) * (G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
   const learners = G.laughT > 0 || G.exam ? [] : G.kids.filter(k => k.state === 'work' || k.state === 'fidget');
   for (const k of learners) k.learn = (k.learn || 0) + L.perKid * form().learn * quality * pairMult(k) * dt;      // eigener Lernstand
   if (G.exam) for (const k of G.kids) {                                                          // Klassenarbeit: Konzentration
@@ -1797,7 +1812,7 @@ function titleScreen() {
        <b style="color:#9fd39a">?</b> Frage: an der Tafel E halten (Lernbonus). Beim Azubi E = vertrösten. · <b style="color:#5cc8c0">WC</b>: beim Azubi E<br>
        <b style="color:#b07ce8">Handy</b> vibriert: schnell hin und E. Klingelt es schon: E halten.<br>
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.<br>
-       <b style="color:#9fd3f0">SPS-Labor</b>: Beamer zeigt die Aufgabe (Leicht / Mittel / Schwer, E halten). Drucker oben links statt Kopierer, Aufgabenkarten statt Blätter.
+       <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
        <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>

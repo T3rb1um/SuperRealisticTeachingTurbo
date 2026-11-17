@@ -868,21 +868,19 @@ function drawLabBoard() {                      // Beamer-Bildschirm: aktuelle Au
     ltext('NOCH ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'), X + 6, Y + 31, '#9fd39a', 2);
     return;
   }
-  const S = G.writing && G.nextSubject ? G.nextSubject : G.subject;
-  if (G.supply <= 0 && !G.writing) { ltext('KEINE AUFGABE!', X + 6, Y + 6, blink(2) ? PAL.red : '#f2c14e', 2); ltext('E HALTEN = AUFGABE ZEIGEN', X + 6, Y + 26, COL.chalk, 1); }
-  else {
-    const lines = S.lines;
-    ltext('AUFGABE: ' + lines[0], X + 6, Y + 5, '#9fd3f0', 1);
-    for (let i = 1; i < lines.length; i++) ltext(lines[i], X + 6, Y + 6 + i * 9, COL.chalk, 1);
-    // kleine Ampel bzw. Symbol rechts
-    for (let i = 0; i < 3; i++) disc(X + W - 14, Y + 12 + i * 9, 3, Math.floor(clockT) % 3 === i ? ['#d94a3a', '#f2c14e', '#7cc47a'][i] : '#3a3d46');
-    ltext(form().name, X + W - 46, Y + 5, '#f2c14e', 1);
+  const lv = labLevel(), lines = G.subject.lines;
+  ltext('PROJEKT: ' + lines[0], X + 6, Y + 5, '#9fd3f0', 1);
+  for (let i = 1; i < lines.length; i++) ltext(lines[i], X + 6, Y + 6 + i * 9, COL.chalk, 1);
+  for (let i = 0; i < 3; i++) {                                                                  // Stufe: drei Balken
+    const on = i <= G.formIdx, c = ['#7cc47a', '#f2c14e', '#e8534a'][G.formIdx];
+    R(X + W - 40 + i * 9, Y + 22 - i * 5, 7, 8 + i * 5, on ? c : '#3a3d46');
   }
-  if (G.writing) {                             // Aufgabe wird geladen
+  ltext(lv.name, X + W - 46, Y + 5, ['#7cc47a', '#f2c14e', '#e8534a'][G.formIdx], 1);
+  if (G.writing) {                             // Umschalten
     R(X + 4, Y + H - 8, W - 8, 4, '#1a2430'); R(X + 4, Y + H - 8, Math.round((W - 8) * Math.min(1, G.writeProg)), 4, '#9fd3f0');
-    ltext('LAEDT ...', X + W - 50, Y + H - 16, '#9fd3f0', 1);
-  } else if (G.supply > 0) {
-    R(X + 4, Y + H - 6, W - 8, 3, '#1a2430'); R(X + 4, Y + H - 6, Math.round((W - 8) * G.supply / 100), 3, G.supply < 25 ? PAL.orange : '#7cc47a');
+    ltext('-> ' + CONFIG.forms[G.formSel].name, X + W - 60, Y + H - 16, '#9fd3f0', 1);
+  } else if (G.labPause > 0) {
+    R(X, Y, W, H, 'rgba(20,28,38,.75)'); ltext('BEAMER LAEDT ...', X + 20, Y + 20, blink(3) ? '#9fd3f0' : COL.chalk, 1);
   }
   // Beamer-Lichtkegel
   ctx.fillStyle = 'rgba(200,230,255,.05)'; ctx.beginPath(); ctx.moveTo(sx(9.6) + 6, wy + 20); ctx.lineTo(X, Y + H); ctx.lineTo(X + W, Y + H); ctx.fill();
