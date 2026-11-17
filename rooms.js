@@ -231,9 +231,9 @@ function drawWorkshop() {
   list.push({ y: 9.9, f: () => { const X = sx(19.4), Y = sy(9.6); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });   // Feuerlöscher
   list.push({ y: 9.5, f: () => { const X = sx(3.2), Y = sy(9.4); R(X, Y - 26, 3, 26, '#c9a43e'); R(X - 6, Y - 4, 16, 4, '#555c68'); for (let i = 0; i < 6; i++) R(X - 5 + i * 3, Y, 2, 4, '#7a5a3a'); } });   // Besen
   // Azubis
-  [5.4, 7.3, 9.2].forEach((x, i) => list.push({ y: 4.0, f: () => rmKid(i, x, 4.0, 'up', { goggles: true }) }));
-  [5.4, 7.3, 9.2].forEach((x, i) => list.push({ y: 6.6, f: () => rmKid(3 + i, x, 6.6, 'up', { goggles: true }) }));
-  [6.3, 8.3].forEach((x, i) => list.push({ y: 9.2, f: () => rmKid(6 + i, x, 9.2, 'up', { goggles: true }) }));
+  [5.4, 7.3, 9.2].forEach((x, i) => list.push({ y: 3.75, f: () => rmKid(i, x, 3.75, 'up', { goggles: true }) }));
+  [5.4, 7.3, 9.2].forEach((x, i) => list.push({ y: 6.35, f: () => rmKid(3 + i, x, 6.35, 'up', { goggles: true }) }));
+  [6.3, 8.3].forEach((x, i) => list.push({ y: 8.95, f: () => rmKid(6 + i, x, 8.95, 'up', { goggles: true }) }));
   list.push({ y: 3.9, f: () => rmKid(8, 16.3, 3.9, 'up', { goggles: true }) });
   list.push({ y: 7.4, f: () => rmKid(9, 16.3, 7.4, 'up', { goggles: true }) });
   list.push({ y: 4.5, f: () => rmKid(10, 11.8, 4.5, 'up', { goggles: true }) });
@@ -832,3 +832,74 @@ window.addEventListener('keydown', e => {
   window.addEventListener('pointerup', () => { drag = null; });
   setRoom(1);
 })();
+
+/* ===================================================== Wege-Prüfung
+   Stellflächen (x0, y0, x1, y1 in Feldern) und Ziele je Raum. Taste P zeigt die Prüfung als Overlay. */
+const kidBox = (x, y) => [x - 0.3, y - 0.35, x + 0.3, y];
+const seatBox = (x, y, side) => side < 0 ? [x - 0.7, y - 0.45, x + 0.5, y + 0.05] : [x - 0.5, y - 0.45, x + 0.7, y + 0.05];
+const ROOM_LAYOUT = {
+  1: { start: [9.4, 1.95], blocks: [
+      ['Meisterpult', 1.4, 0.2, 4.4, 1.3], ['Werkzeugschrank', 0.3, 3.9, 1.9, 4.6], ['Drehmaschine 1', 14.9, 1.9, 19.3, 3.0], ['Drehmaschine 2', 14.9, 5.4, 19.3, 6.5],
+      ['Fräse', 10.6, 2.1, 12.9, 3.6], ['Bohrmaschine', 12.3, 7.0, 13.5, 7.8], ['Werkbank 1', 4.4, 2.4, 10.2, 3.25], ['Werkbank 2', 4.4, 5.0, 10.2, 5.85], ['Werkbank 3', 4.4, 7.6, 10.2, 8.45],
+      ['Ausgabe', 0.2, 8.8, 2.4, 9.7], ['Feuerlöscher', 19.4, 9.2, 19.8, 9.7]],
+    kids: [[5.4, 3.75], [7.3, 3.75], [9.2, 3.75], [5.4, 6.35], [7.3, 6.35], [9.2, 6.35], [6.3, 8.95], [8.3, 8.95], [16.3, 3.9], [16.3, 7.4], [11.8, 4.5], [11.7, 7.7]],
+    stations: [['Tafel', [6.6, 0.4, 12.6, 0.5]], ['Ausgabe (Kopierer)', [0.2, 8.8, 2.4, 9.7]], ['Pult', [1.4, 0.2, 4.4, 1.3]], ['Tür', [16.6, 9.95, 18.6, 10]]] },
+  2: { start: [13.4, 5.7], blocks: [
+      ['Motorregal', 1.0, 0.0, 6.8, 1.0], ['Hochregal', 0.1, 0.0, 1.4, 5.9], ['Hydraulik 1', 8.9, 0.5, 10.8, 0.95], ['Hydraulik 2', 11.0, 0.5, 12.9, 0.95], ['Hydraulik 3', 14.0, 0.5, 15.9, 0.95], ['Hydraulik 4', 16.1, 0.5, 18.0, 0.95],
+      ['Büro', 24.2, 0.3, 29.8, 4.5], ['Drucker', 24.6, 4.8, 26.2, 5.6], ['Tonnen', 27.4, 5.1, 28.4, 5.8], ['Radlader', 22.1, 10.2, 29.6, 11.9],
+      ['Motor (längs)', 13.2, 9.4, 16.1, 10.05], ['Motor (Stirnseite)', 19.75, 6.5, 21.4, 7.05], ['Werkzeugwagen', 16.6, 9.8, 18.2, 10.6],
+      ['Elektrowand 1', 1.6, 9.6, 4.4, 9.95], ['Elektrowand 2', 7.0, 9.6, 9.8, 9.95], ['Mobile Tafel', 10.3, 4.75, 13.0, 5.05], ['Smartboard', 6.6, 3.8, 9.7, 4.05], ['Feuerlöscher', 29.4, 8.7, 29.8, 9.4]],
+    kids: [[9.8, 1.9], [11.9, 1.9], [14.9, 1.9], [17.0, 1.9], [2.5, 10.7], [4.0, 10.7], [7.9, 10.7], [9.4, 10.7], [12.7, 10.3], [19.1, 7.5], [21.0, 11.6], [22.3, 12.4]],
+    stations: [['Tafel', [10.3, 4.75, 13.0, 5.05]], ['Drucker', [24.6, 4.8, 26.2, 5.6]], ['Notausgang', [0, 7.2, 0.05, 9.0]]] },
+  3: { start: [8.6, 3.1], blocks: [
+      ['Druckertisch', 0.4, 0.15, 3.8, 0.9], ['Lehrerpult', 5.2, 1.6, 10.6, 2.6], ['Reihe links', 0.1, 2.4, 1.4, 9.6], ['Reihe rechts', 18.6, 2.4, 19.9, 9.6],
+      ['Anlage', 7.4, 3.9, 12.6, 7.5], ['Kleine Anlage', 3.0, 9.2, 6.2, 9.9], ['Schränke', 11.4, 9.3, 15.3, 10.0]],
+    kids: [], seats: [],
+    stations: [['Tafel', [4.6, 0.0, 11.8, 0.05]], ['Drucker', [0.4, 0.15, 3.8, 0.9]], ['Tür hinten', [18.1, 0.0, 19.4, 0.05]], ['Tür vorne', [15.9, 9.95, 17.9, 10]]] },
+};
+for (const side of [-1, 1]) for (const y of LAB_PAIRS.flat()) ROOM_LAYOUT[3].seats.push(seatBox(side < 0 ? 2.15 : 17.85, y, side));
+
+function checkPaths(idx) {                     // Flutfüllung ab der Startposition der Lehrkraft
+  const L = ROOM_LAYOUT[idx], RmD = ROOMS[idx], r = CONFIG.player.radius, reach = CONFIG.player.reach, g = 0.05;
+  const boxes = L.blocks.map(b => ({ name: b[0], b: b.slice(1) }))
+    .concat((L.kids || []).map((k, i) => ({ name: 'Azubi ' + (i + 1), b: kidBox(k[0], k[1]), kid: true })))
+    .concat((L.seats || []).map((b, i) => ({ name: 'Azubi ' + (i + 1), b, kid: true })));
+  const W = Math.round(RmD.w / g), H = Math.round(RmD.h / g), free = new Uint8Array(W * H), seen = new Uint8Array(W * H);
+  const d2b = (x, y, b) => { const cx = clamp(x, b[0], b[2]), cy = clamp(y, b[1], b[3]); return Math.hypot(x - cx, y - cy); };
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = (i + 0.5) * g, y = (j + 0.5) * g;
+    if (x < r || x > RmD.w - r || y < 0.35 || y > RmD.h - r) continue;
+    if (boxes.every(o => d2b(x, y, o.b) >= r)) free[j * W + i] = 1;
+  }
+  const q = [], s0 = Math.floor(L.start[1] / g) * W + Math.floor(L.start[0] / g);
+  if (free[s0]) { q.push(s0); seen[s0] = 1; }
+  while (q.length) { const c = q.pop(), i = c % W, j = (c / W) | 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const n = nj * W + ni; if (free[n] && !seen[n]) { seen[n] = 1; q.push(n); } } }
+  const reachable = b => { for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (seen[j * W + i] && d2b((i + 0.5) * g, (j + 0.5) * g, b) <= reach) return true; return false; };
+  const targets = boxes.filter(o => o.kid).map(o => ({ name: o.name, b: o.b })).concat(L.stations.map(([name, b]) => ({ name, b })));
+  const res = targets.map(t => ({ name: t.name, ok: reachable(t.b), b: t.b }));
+  return { res, seen, free, W, H, g, boxes };
+}
+function drawPathOverlay(idx) {
+  const P = checkPaths(idx);
+  for (let j = 0; j < P.H; j++) for (let i = 0; i < P.W; i++) {
+    const c = P.seen[j * P.W + i] ? 'rgba(80,200,90,.28)' : P.free[j * P.W + i] ? 'rgba(240,180,40,.35)' : null;
+    if (c) { ctx.fillStyle = c; ctx.fillRect(OX + i * P.g * T, OY + j * P.g * T, P.g * T + 0.5, P.g * T + 0.5); }
+  }
+  ctx.strokeStyle = 'rgba(220,40,40,.9)'; ctx.lineWidth = 1;
+  for (const o of P.boxes) ctx.strokeRect(sx(o.b[0]) + 0.5, sy(o.b[1]) + 0.5, (o.b[2] - o.b[0]) * T, (o.b[3] - o.b[1]) * T);
+  for (const t of P.res) if (!t.ok) { ctx.fillStyle = 'rgba(255,0,80,.6)'; ctx.fillRect(sx(t.b[0]) - 2, sy(t.b[1]) - 2, (t.b[2] - t.b[0]) * T + 4, (t.b[3] - t.b[1]) * T + 4); }
+  return P.res;
+}
+let showPaths = false;
+window.addEventListener('keydown', e => { if (e.code === 'KeyP') showPaths = !showPaths; }, true);
+{
+  const base = render;
+  render = function () {
+    if (!showPaths || !ROOM_LAYOUT[roomIdx]) return base();
+    const r = ROOMS[roomIdx];
+    const W = OX * 2 + r.w * T, H = OY + r.h * T + 40;
+    if (roomCv.width !== W || roomCv.height !== H) { roomCv.width = W; roomCv.height = H; }
+    ctx = roomCv.getContext('2d'); r.draw(); drawPathOverlay(roomIdx); ctx = mainCtx;
+    ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, SW, SH); ctx.drawImage(roomCv, -Math.round(camX), -Math.round(camY)); rmLabel();
+  };
+}
