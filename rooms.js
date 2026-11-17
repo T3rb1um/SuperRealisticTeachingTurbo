@@ -289,42 +289,32 @@ function hallWall(wy) {
   // runde Uhr
   rmClock(sx(16.4), wy + 28);
 }
-function drawContainer(x, y) {                 // Bürocontainer offen (ohne Dach): hinten Büro mit Drucker, vorne WC; Eingang links zur Torseite
-  const w = 5.6, d = 4.2, X = sx(x), Y = sy(y), W = w * T, D = d * T, H = 34, wc = '#f2f2ee', wt = '#d6d9dc';
-  R(X, Y, W, D, '#cfd3d6');                                                                         // Boden innen
-  for (let i = 0; i < W; i += 16) for (let j = 0; j < D; j += 16) if ((i + j) % 32 === 0) R(X + i, Y + j, 16, 16, '#c7cbce');
-  const wall = (x0, y0, w0, h0) => { R(x0, y0 - H, w0, h0, wt); R(x0, y0 - H + h0, w0, H, wc); R(x0, y0 - H + h0, w0, 1, '#c9ccd1'); };
-  wall(X, Y, W, 6);                                                                                 // Rückwand
-  // Büro hinten: Schreibtisch, Stuhl, Drucker, Regal
-  const by = Y + 10;
-  R(X + 10, by, 60, 22, '#d9b27a'); R(X + 10, by + 22, 60, 6, '#b08a5a'); R(X + 16, by - 6, 22, 14, '#26232e'); R(X + 18, by - 4, 18, 9, '#69b2ee'); R(X + 44, by + 6, 16, 8, COL.white);
-  disc(X + 40, by + 40, 7, '#3a3d46');
-  const pr = X + 96;                                                                                // Drucker
-  R(pr, by - 4, 40, 34, '#ececf0'); R(pr, by - 4, 40, 8, '#d6d6dc'); R(pr + 4, by - 2, 24, 4, COL.white); R(pr + 30, by - 2, 8, 5, '#4f8fc9');
-  R(pr + 4, by + 8, 32, 7, '#3f424b'); for (let i = 0; i < 2; i++) R(pr + 8, by + 12 - i * 2, 24, 2, i ? '#f0ece4' : COL.white); R(pr + 2, by + 18, 36, 5, '#e2e2e8'); R(pr + 2, by + 24, 36, 5, '#e2e2e8');
-  R(X + W - 30, by - 4, 22, 40, '#b08a5a'); for (let i = 0; i < 3; i++) R(X + W - 28, by + 2 + i * 12, 18, 8, ['#2f6db5', '#d94a3a', '#f2c14e'][i]);
-  // Trennwand Büro | WC (mit Tür)
-  const ty = Y + D * 0.55;
-  wall(X, ty, W * 0.45, 6); wall(X + W * 0.62, ty, W * 0.38, 6);
-  // WC vorne: Toilette + Waschbecken
-  const wy0 = ty + 12;
-  R(X + W * 0.52, wy0 + 6, 16, 10, COL.white); disc(X + W * 0.52 + 8, wy0 + 22, 8, COL.white); disc(X + W * 0.52 + 8, wy0 + 22, 4, '#bfe0f2');
-  R(X + 16, wy0 + 4, 22, 12, COL.white); disc(X + 27, wy0 + 10, 4, '#bfe0f2'); R(X + 26, wy0, 2, 6, '#9aa2ab');
-  R(X + W - 40, wy0 + 6, 24, 30, '#e2e4e6'); R(X + W - 38, wy0 + 8, 20, 4, '#d6d9dc');
-  // Außenwände: links mit Büro-Eingang, rechts, vorne mit WC-Tür
-  R(X - 3, Y - H, 6, by + 4 - Y + H, wc);                                                           // links bis zur Tür
-  R(X - 3, by + 52 - H, 6, Y + D - (by + 52), wc); R(X - 3, Y + D - H, 6, H, wc);
-  R(X - 4, by + 4 - H, 3, 48, '#e6e8e6');                                                            // offene Tür
-  R(X - 12, by + 10 - H - 14, 40, 9, '#2f6db5'); ltext('BUERO', X - 9, by + 10 - H - 12, COL.white, 1);
-  R(X + W - 3, Y - H, 6, D + H, wc);
-  wall(X, Y + D, W * 0.42, 6); wall(X + W * 0.66, Y + D, W * 0.34, 6);
-  const dx = X + W * 0.42;                                                                          // WC-Tür vorne
-  R(dx, Y + D - H, W * 0.24, H + 6, '#e6e8e6'); R(dx, Y + D - H, W * 0.24, 2, '#ffffff');
-  R(dx + 6, Y + D - H + 6, 18, 10, '#2f6db5'); ltext('WC', dx + 11, Y + D - H + 8, COL.white, 1);
-  rmSign(X + W - 30, Y + D - H + 12, 'exit');
-  // Leiter außen rechts aufs Containerdach-Lager
-  for (let i = 0; i < 5; i++) R(X + W + 6, Y + D - 46 + i * 10, 12, 2, '#c9ccd1');
-  R(X + W + 6, Y + D - 50, 2, 54, '#c9ccd1'); R(X + W + 16, Y + D - 50, 2, 54, '#c9ccd1');
+function drawContainer(x, y) {                 // Bürocontainer als geschlossener Block, vorne WC-Tür
+  const b = box(x, y, 5.6, 4.2, 74, '#d6d9dc', '#f2f2ee', '#c9ccd1');
+  for (let i = 1; i < 4; i++) R(b.X + i * (b.W / 4), b.front, 1, 74, '#d6d9dc');
+  for (let i = 1; i < 6; i++) R(b.X, b.Y + i * (b.D / 6), b.W, 1, '#c9ccd1');                    // Dachfugen
+  R(b.X + 8, b.front + 10, 34, 9, '#2f6db5'); ltext('BUERO', b.X + 11, b.front + 12, COL.white, 1);
+  const wx = b.X + 92;                                                                              // WC-Tür
+  R(wx - 2, b.front + 18, 34, 56, '#c9ccd1'); R(wx, b.front + 20, 30, 54, '#e6e8e6'); R(wx, b.front + 20, 30, 2, '#ffffff'); R(wx + 24, b.front + 46, 4, 2, '#9aa2ab');
+  R(wx + 6, b.front + 26, 18, 10, '#2f6db5'); ltext('WC', wx + 11, b.front + 28, COL.white, 1);
+  // auf dem Dach: Heizgerät, Kisten, Leiter
+  R(b.X + 20, b.Y + 6, 40, 26, '#9aa2ab'); R(b.X + 20, b.Y + 6, 40, 3, '#c9ccd1'); disc(b.X + 36, b.Y + 19, 8, '#3a3d46'); disc(b.X + 36, b.Y + 19, 3, '#6b7280');
+  R(b.X + 90, b.Y + 14, 22, 14, '#c08a5a'); R(b.X + 116, b.Y + 18, 16, 10, '#c08a5a'); R(b.X + 140, b.Y + 12, 6, 20, '#3a3d46');
+  for (let i = 0; i < 6; i++) R(b.X + b.W - 18, b.front - 30 + i * 14, 14, 2, '#c9ccd1');
+  R(b.X + b.W - 18, b.front - 34, 2, 90, '#c9ccd1'); R(b.X + b.W - 6, b.front - 34, 2, 90, '#c9ccd1');
+}
+function drawTestStandFront(x, y) {            // Motorprüfstand in den Raum gedreht (Blick auf die Stirnseite)
+  const X = sx(x), Y = sy(y), c = '#e8b830';
+  softShadow(X + 22, Y + 2, 30, 5);
+  R(X - 2, Y - 8, 50, 6, '#3a3d46'); R(X, Y - 2, 6, 4, '#26232e'); R(X + 40, Y - 2, 6, 4, '#26232e');
+  R(X + 4, Y - 110, 38, 30, '#f4f4f0'); R(X + 4, Y - 110, 38, 2, '#ffffff');                                     // Schalttafel hinten oben
+  for (let i = 0; i < 3; i++) { disc(X + 12 + i * 11, Y - 100, 4, '#26232e'); px(X + 12 + i * 11, Y - 102, PAL.red); }
+  for (let i = 0; i < 4; i++) px(X + 10 + i * 8, Y - 86, blink(1.1 + i * 0.4, 7) ? '#f29a4e' : '#7a3a1a');
+  rr(X + 4, Y - 70, 38, 62, c, 3); R(X + 4, Y - 70, 38, 3, shade(c, 0.3));                                       // Block
+  rr(X + 8, Y - 80, 30, 12, '#c9ccd1', 3);                                                                      // Ventildeckel
+  disc(X + 23, Y - 40, 12, '#3a3d46'); disc(X + 23, Y - 40, 5, '#9aa2ab');                                       // Riemenscheibe / Lüfter
+  R(X + 30, Y - 62, 8, 8, '#3a3d46'); R(X + 8, Y - 24, 30, 6, '#3a3d46');
+  rmEstop(X + 44, Y - 60);
 }
 function drawLoader2(x, y) {                   // moderner kompakter Radlader, Schaufel links
   const X = sx(x), Y = sy(y), Yl = '#f2b81e', YD = '#c99212', YL = '#ffd65a';
@@ -483,10 +473,9 @@ function drawElecWall(x, y, ph) {              // große Steckwand mit Bagger-Ar
 }
 function drawBins(x, y) { const X = sx(x), Y = sy(y); for (let i = 0; i < 3; i++) { R(X + i * 18, Y - 22, 16, 22, '#f2f2ee'); R(X + i * 18, Y - 24, 16, 3, ['#f2c14e', '#2f6db5', '#9aa2ab'][i]); } }
 function drawHoseRail() {                      // blaue Schiene mit orangen Abgasschläuchen über den Prüfständen
-  const y0 = sy(11.7) - 128;
-  R(sx(12.6), y0, 10.2 * T, 6, '#2f6db5'); R(sx(12.6), y0, 10.2 * T, 2, '#5a8fd6');
-  for (const x of [13.2, 16.4, 19.6]) {
-    const X = sx(x) + 30;
+  const y0 = sy(12.5) - 140;
+  R(sx(10.2), y0, 8.4 * T, 6, '#2f6db5'); R(sx(10.2), y0, 8.4 * T, 2, '#5a8fd6');
+  for (const X of [sx(11.2) + 30, sx(16.6) + 23]) {
     R(X - 4, y0 + 6, 10, 6, '#3a3d46');
     for (let i = 0; i < 12; i++) { const yy = y0 + 12 + i * 4; R(X - 3 + Math.round(Math.sin(i * 0.9 + clockT) * 1), yy, 8, 3, i % 2 ? '#d98a4a' : '#c47a3a'); }
   }
@@ -507,25 +496,35 @@ function drawHall() {
   list.push({ y: 5.6, f: () => drawRackSide(0.1, 1.6, 4.4) });
   [8.9, 11.0, 14.0, 16.1].forEach(x => list.push({ y: 0.9, f: () => drawHydWall(x, 0.9) }));
   list.push({ y: 4.5, f: () => drawContainer(24.2, 0.3) });
-  list.push({ y: 5.4, f: () => drawBins(26.6, 5.6) });
-  list.push({ y: 5.0, f: () => { ctx.save(); ctx.translate(sx(16.4), sy(5.0)); ctx.scale(1.25, 1.25); ctx.translate(-sx(16.4), -sy(5.0)); drawLoader2(16.4, 5.0); ctx.restore(); } });
-  [[13.2], [16.4], [19.6]].forEach(([x]) => list.push({ y: 11.7, f: () => drawTestStand(x, 11.7, '#e8b830') }));
-  list.push({ y: 7.4, f: () => drawPneuPanel(2.6, 7.4) });
-  list.push({ y: 7.4, f: () => drawPneuPanel(5.2, 7.4) });
-  list.push({ y: 12.2, f: () => drawElecWall(1.4, 12.2, 0) });
-  list.push({ y: 12.2, f: () => drawElecWall(5.0, 12.2, 2) });
-  list.push({ y: 8.4, f: () => drawTrolley(8.2, 7.6) });
+  list.push({ y: 5.6, f: () => drawOfficePrinter(24.6, 4.8) });
+  list.push({ y: 5.8, f: () => drawBins(27.4, 5.8) });
+  // Radlader: Schaufel nach rechts, unten rechts an der Wand, Motorhaube hinten offen
+  const LA = sx(29.2), LB = sy(12.5);
+  list.push({ y: 12.5, f: () => {
+    ctx.save(); ctx.translate(LA, LB); ctx.scale(-1.25, 1.25); ctx.translate(-sx(0), -sy(0)); drawLoader2(0, 0); ctx.restore();
+    const hx = LA - 226, hy = LB - 66;                                                                // offene Motorklappe + Motor
+    R(hx + 4, hy + 2, 84, 20, '#3a3d46'); rr(hx + 10, hy + 4, 40, 16, '#9aa2ab', 2); R(hx + 12, hy + 6, 36, 3, '#c9ccd1'); R(hx + 56, hy + 6, 22, 12, '#555c68'); disc(hx + 70, hy + 12, 4, '#c9ccd1');
+    ctx.fillStyle = '#f2b81e'; ctx.beginPath(); ctx.moveTo(hx + 4, hy + 2); ctx.lineTo(hx + 88, hy + 2); ctx.lineTo(hx + 78, hy - 40); ctx.lineTo(hx + 14, hy - 40); ctx.fill();
+    R(hx + 14, hy - 40, 64, 3, '#ffd65a'); for (let i = 0; i < 5; i++) R(hx + 24 + i * 10, hy - 30, 3, 22, '#c99212');
+    R(hx + 8, hy - 36, 3, 38, '#9aa2ab');                                                                // Haltestange
+  } });
+  // Motoren: einer an der Wand, einer in den Raum gedreht
+  list.push({ y: 12.5, f: () => drawTestStand(10.8, 12.5, '#e8b830') });
+  list.push({ y: 11.6, f: () => drawTestStandFront(16.6, 11.6) });
+  // Elektro-Steckwände (groß), etwas höher
+  list.push({ y: 11.3, f: () => drawElecWall(1.4, 11.3, 0) });
+  list.push({ y: 11.3, f: () => drawElecWall(5.2, 11.3, 2) });
+  list.push({ y: 7.6, f: () => drawTrolley(8.4, 6.8) });
   list.push({ y: 5.0, f: () => drawMobileBoard(10.4, 5.0) });
   list.push({ y: 4.0, f: () => drawSmartboard(6.6, 4.0) });
-  list.push({ y: 12.7, f: () => { const X = sx(29.4), Y = sy(12.6); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
+  list.push({ y: 12.7, f: () => { const X = sx(29.4), Y = sy(9.4); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
   // Azubis (12)
   [9.8, 11.9, 14.9, 17.0].forEach((x, n) => list.push({ y: 1.9, f: () => hallWorker(n, x, 1.9, 'up') }));          // Hydraulik
-  list.push({ y: 8.3, f: () => hallWorker(4, 3.6, 8.3, 'up') });                                                 // E-Pneumatik
-  list.push({ y: 8.3, f: () => hallWorker(5, 6.2, 8.3, 'up') });
-  [[2.4, 6], [3.8, 7], [6.6, 8]].forEach(([x, i]) => list.push({ y: 12.9, f: () => hallWorker(i, x, 12.9, 'up') }));   // Elektrowände
-  list.push({ y: 12.6, f: () => hallWorker(9, 12.8, 12.6, 'right') });                                          // Prüfstände
-  list.push({ y: 12.6, f: () => hallWorker(10, 16.0, 12.6, 'right') });
-  list.push({ y: 12.6, f: () => hallWorker(11, 19.2, 12.6, 'right') });
+  [[2.3, 4], [3.8, 5], [6.1, 6], [7.6, 7]].forEach(([x, i]) => list.push({ y: 12.1, f: () => hallWorker(i, x, 12.1, 'up') }));   // Elektrowände
+  list.push({ y: 12.8, f: () => hallWorker(8, 10.3, 12.8, 'right') });                                           // Motor an der Wand
+  list.push({ y: 12.0, f: () => hallWorker(9, 16.0, 12.0, 'right') });                                           // Motor im Raum
+  list.push({ y: 12.6, f: () => hallWorker(10, 21.4, 12.6, 'right') });                                          // Radlader-Motor
+  list.push({ y: 13.0, f: () => hallWorker(11, 23.3, 13.0, 'up') });
   list.push({ y: 5.7, f: () => rmTeacher(13.4, 5.7, 'left') });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawHoseRail();
