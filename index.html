@@ -148,6 +148,8 @@
   .grade .gn { width: 56px; } .grade .gb { flex: 1; height: 7px; background: #1e1724; border-radius: 2px; overflow: hidden; }
   .grade .gb i { display: block; height: 100%; background: var(--learn); } .grade .gg { width: 14px; text-align: right; font-weight: bold; }
   .slots { display: flex; flex-direction: column; gap: 4px; margin: 4px auto 6px; max-width: 520px; }
+  .rpick { font: inherit; font-size: 12px; color: var(--ink); background: #2e2335; border: 2px solid #1e1724; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+  .rpick.sel { border-color: var(--gold); color: var(--gold); }
   .weekintro { background: #2e2335; border: 2px solid #f2c14e; border-radius: 6px; padding: 8px 10px; margin: 0 auto 8px; max-width: 560px; color: var(--ink); line-height: 1.4; }
   .slot { display: flex; gap: 8px; align-items: center; font: inherit; font-size: 12px; color: var(--ink); background: #2e2335;
     border: 2px solid #1e1724; border-radius: 6px; padding: 5px 8px; cursor: pointer; text-align: left; }
@@ -178,6 +180,8 @@
   <div id="toast" role="status"></div>
   <div id="rotate"><div>Bitte das Handy<br>quer halten</div></div>
 <script src="game.js"></script>
+<script src="lab.js"></script>
+<script src="roomart.js"></script>
 <script src="render.js"></script>
 </body>
 </html>

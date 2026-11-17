@@ -1191,6 +1191,11 @@ function drawLighting() {
 
 /* ============================================================ Szene */
 function render() {
+  if (typeof isLab === 'function' && isLab()) renderLabWorld(); else renderClassWorld();
+  if (state === 'title') return;
+  renderOverlay();
+}
+function renderClassWorld() {
   ctx.drawImage(bgCanvas, 0, 0);
   drawWindow();
   drawBoard();
@@ -1212,9 +1217,8 @@ function render() {
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawDoor();
   drawLighting();
-
-  if (state === 'title') return;
-
+}
+function renderOverlay() {
   // Blasen mit Geduld-Ring
   for (const k of G.kids) {
     const X = sx(k.x), Y = sy(k.y) - 74;
@@ -1235,8 +1239,15 @@ function render() {
     if (k.state === 'wc') bubble(X, Y - 8, '#5cc8c0', 1 - k.t / E.wc.patience, 'WC', COL.white, 13);
     if (k.state === 'phoneSoon') { bubble(X, Y + 8, PAL.grey, 1 - k.t / E.phone.warn, '', '#b07ce8', 8); phoneIcon(X, Y + 8); }
     if (k.state === 'phone') { bubble(X, Y - 8, '#b07ce8', 1, '', COL.white); phoneIcon(X, Y - 8); }
+    if (k.state === 'pc') bubble(X, Y - 8, '#e8534a', 1 - k.t / CONFIG.lab.pc.patience, 'PC', COL.white, 13);
+    if (k.state === 'plc') bubble(X, Y - 8, PAL.orange, 1 - k.t / CONFIG.lab.plc.patience, 'STOP', COL.white, 18);
+    if (k.state === 'net') { bubble(X, Y + 6, PAL.grey, 1, '', PAL.grey, 8); R(X - 4, Y + 2, 8, 2, PAL.dark); R(X - 2, Y + 5, 4, 2, PAL.dark); R(X - 5, Y, 2, 9, PAL.red); }
+    if (k.state === 'test') { const n = G.plant ? G.plant.queue.indexOf(k) + 1 : 0; bubble(X, Y - 8, '#5cc8c0', 1 - k.t / CONFIG.lab.test.patience, 'T' + (n || ''), COL.white, 13); }
   }
-  const knockers = G.kids.filter(k => k.state === 'knock');
+  if (typeof isLab === 'function' && isLab()) drawLabOverlay();
+  const knockers = G.kids.filter(k => k.state === 'knock' && !(k.door === 1));
+  const back = G.kids.filter(k => k.state === 'knock' && k.door === 1);
+  if (back.length) { const k = back.reduce((a, b) => (a.t > b.t ? a : b)), loud = k.t > CONFIG.door.patience; bubble(sx(18.1) + 20, OY - 44 + (loud && blink(10) ? -2 : 0), PAL.orange, loud ? 1 : 1 - k.t / CONFIG.door.patience, back.length > 1 ? '!' + back.length : '!', loud ? PAL.red : COL.white, back.length > 1 ? 13 : 11); }
   if (knockers.length) {
     const k = knockers.reduce((a, b) => (a.t > b.t ? a : b));
     const loud = k.t > CONFIG.door.patience;
@@ -1244,7 +1255,7 @@ function render() {
   }
   drawNpcBubbles();
   if (G.noWC) { const X = sx(DOOR.cx) + 34, Y = sy(RH) - 60; rr(X - 12, Y - 10, 24, 20, 'rgba(38,35,46,.75)', 3); newsIcon('toilet', X, Y); }   // Erinnerung: WC zu
-  if (G.copier.jam) bubble(sx(1.1), sy(8.5) - 84, PAL.red, 1 - G.copier.hits / CONFIG.events.jamHits, '!', COL.white);
+  if (G.copier.jam) bubble(sx(CPX()), sy(CPY()) - (isLab() ? 66 : 84), PAL.red, 1 - G.copier.hits / CONFIG.events.jamHits, '!', COL.white);
   if (G.supply <= 0 && !CONFIG.board.review) bubble(sx(10), OY - WALL_H + 40, PAL.red, 1 - Math.min(1, G.emptyT / CONFIG.board.emptyDelay), '!', COL.white);
 
   // Denkblase: welche Arbeitsform ist gewählt? (nach Q abseits der Tafel)
@@ -1271,11 +1282,15 @@ function render() {
   const tg = currentTarget();
   if (tg && tg.type !== 'board' && !(tg.type === 'copier' && G.exam && !G.printerOn) && !G.writing && !G.give && !G.grab && !G.deskHold) {
     let X, Y;
-    if (tg.type === 'copier') { X = sx(1.1); Y = sy(8.5) - 96; }
-    else if (tg.type === 'desk') { X = sx(2.2); Y = sy(0.15) - 50; }
+    if (tg.type === 'copier') { X = sx(CPX()); Y = sy(CPY()) - (isLab() ? 60 : 96); }
+    else if (tg.type === 'desk') { X = sx(RD().deskAt.ax); Y = sy(DKY()) - 50; }
+    else if (tg.type === 'door2') { X = sx(18.1) + 20; Y = OY - 74; }
+    else if (tg.type === 'net') { X = sx(15.8); Y = OY - 86; }
+    else if (tg.type === 'plant') { X = sx(10); Y = sy(3.9) - 100; }
+    else if (tg.type === 'robot') { X = sx(G.robot.x); Y = sy(G.robot.y) - 120; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }
     else if (tg.type === 'npc') { X = sx(G.npc.x); Y = sy(G.npc.y) - 112; }
-    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
+    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc', 'test'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
     const b = Math.round(Math.sin(clockT * 6) * 2);
     for (let i = 0; i < 5; i++) R(X - 6 + i, Y + i + b, 13 - i * 2, 1, COL.white);
     R(X - 6, Y - 1 + b, 13, 1, PAL.dark);
@@ -1287,7 +1302,9 @@ function render() {
   }
 
   // Fortschritt beim Halten
-  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : G.printerOff ? [G.printerOff.t / CONFIG.week.printerNoise.offHold, PAL.white] : null;
+  const prog = G.give ? [G.give.t / G.give.need, PAL.blue] : G.grab ? [G.grab.t / CONFIG.events.phone.hold, '#b07ce8'] : G.explaining ? [G.explainProg, '#9fd39a'] : G.tutor && G.tutor.t > 0.25 ? [G.tutor.t / (CONFIG.tutor.hold * CONFIG.events.question.explain), '#9fd39a'] : G.npcProg > 0 ? [G.npcProg, '#9fd3f0'] : G.printerOff ? [G.printerOff.t / CONFIG.week.printerNoise.offHold, PAL.white]
+    : G.labHold && G.labHold.kind === 'pc' ? [G.labHold.t / CONFIG.lab.pc.hold, '#9fd3f0'] : G.labHold && G.labHold.kind === 'net' ? [G.labHold.t / CONFIG.lab.net.hold, '#9fd3f0']
+    : G.labHold && G.labHold.kind === 'quit' ? [G.labHold.t / CONFIG.lab.test.quitHold, '#7cc47a'] : null;
   if (prog) { const X = sx(G.p.x), Y = sy(G.p.y) - 80; rr(X - 18, Y, 36, 8, PAL.dark, 2); R(X - 16, Y + 2, Math.round(32 * Math.min(1, prog[0])), 4, prog[1]); }
 
   for (const p of G.parts) { const s = p.s ? 2 : 3; R(p.x, p.y, s, s, p.color); }
