@@ -263,7 +263,15 @@ function drawBoard() {
 
   const lineY = i => by + 5 + i * 12 + (i ? 2 : 0);
   const figX = bx + 130, figY = by + 8;
-  if (G.writing || G.writeProg > 0) {
+  if (G.exam) {                                                  // Klassenarbeit
+    ltext('KLASSENARBEIT', bx + 6, lineY(0), '#f2c14e', 2);
+    R(bx + 6, lineY(0) + 11, 13 * 8 - 2, 1, '#c9a43e');
+    ltext('RUHE BITTE!', bx + 6, lineY(1) + 2, COL.chalk, 2);
+    ltext('KEIN SPICKEN', bx + 6, lineY(2) + 2, COL.chalk, 2);
+    const left = Math.max(0, Math.ceil(CONFIG.lessonSeconds - G.t));
+    ltext('NOCH ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'), bx + 6, lineY(4), '#9fd39a', 2);
+    drawFigure('gears', figX, figY, '#cfe3d6');
+  } else if (G.writing || G.writeProg > 0) {
     const sub = G.nextSubject || G.subject, txt = sub.lines, total = txt.join('').length;
     let n = Math.floor(total * G.writeProg);
     txt.forEach((line, i) => { if (n > 0) { ltext(line.slice(0, n), bx + 6, lineY(i), COL.chalk, 2); n -= line.length; } });
@@ -635,6 +643,7 @@ function drawKid(k) {
   if (st === 'done') headY = -2;
   if (st === 'fidget') { jit = Math.floor(t * 9 + k.phase) % 2 ? 1 : -1; turn = Math.sin(t * 2.5 + k.phase) > 0.3 ? 1 : 0; }
   if (st === 'idle') turn = 1;
+  if (st === 'cheat') turn = 1;
   if (st === 'wc') jit = Math.floor(t * 6 + k.phase) % 2 ? 1 : -1;
   if (st === 'phoneSoon') headY = 2;
   if (st === 'phone') { turn = 2; mood = 'smile'; }
@@ -642,8 +651,8 @@ function drawKid(k) {
   if (G && G.laughT > 0 && (st === 'work' || st === 'fidget')) { turn = 2; mood = 'laugh'; oy = -Math.abs(Math.round(Math.sin(t * 14 + k.phase) * 2)); }
   if (k.annoyed > 0) turn = 1;
   if (G && backTurned() && st === 'work' && Math.sin(t * 1.5 + k.phase) > 0.2) turn = 1;
-  const side = k.flip ? -1 : 1;
-  const bx = X + jit + (st === 'idle' ? Math.round(Math.sin(t * 2.2 + k.phase) * 2) : 0);
+  const side = st === 'cheat' ? k.cheatSide : k.flip ? -1 : 1;
+  const bx = X + jit + (st === 'cheat' ? k.cheatSide * 3 : 0) + (st === 'idle' ? Math.round(Math.sin(t * 2.2 + k.phase) * 2) : 0);
 
   // Jacke
   const jc = k.jacket, jd = shade(jc, -0.2), jl = shade(jc, 0.12);
@@ -1076,6 +1085,10 @@ function render() {
     if (k.state === 'idle') bubble(X, Y, PAL.yellow, 1 - k.t / CONFIG.kids.idleToLoud, 'Z', COL.white);
     if (k.state === 'loud') bubble(X, Y - 8, PAL.red, 1 - k.spreadT / CONFIG.kids.spreadEvery, '!', '#ffb36b');
     if (k.state === 'wait') { bubble(X, Y - 8, PAL.blue, 1 - k.t / CONFIG.copier.patience, '', COL.white); paperIcon(X, Y - 8); }
+    if (k.state === 'cheat') {                                     // spickt: Augen schielen zur Seite
+      bubble(X, Y - 8, PAL.orange, 1 - k.t / CONFIG.week.cheatPatience, '', COL.white);
+      for (const ex of [-5, 2]) { R(X + ex, Y - 12, 5, 6, COL.white); R(X + ex + (k.cheatSide > 0 ? 3 : 0), Y - 10, 2, 3, PAL.dark); }
+    }
     if (k.state === 'question') bubble(X, Y - 8, '#9fd39a', 1 - k.t / E.question.patience, '?', COL.white);
     if (k.state === 'wc') bubble(X, Y - 8, '#5cc8c0', 1 - k.t / E.wc.patience, 'WC', COL.white, 13);
     if (k.state === 'phoneSoon') { bubble(X, Y + 8, PAL.grey, 1 - k.t / E.phone.warn, '', '#b07ce8', 8); phoneIcon(X, Y + 8); }
@@ -1103,12 +1116,12 @@ function render() {
     if (tg.type === 'copier') { X = sx(1.1); Y = sy(8.5) - 96; }
     else if (tg.type === 'desk') { X = sx(2.2); Y = sy(0.15) - 50; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }
-    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
+    else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }
     const b = Math.round(Math.sin(clockT * 6) * 2);
     for (let i = 0; i < 5; i++) R(X - 6 + i, Y + i + b, 13 - i * 2, 1, COL.white);
     R(X - 6, Y - 1 + b, 13, 1, PAL.dark);
   }
-  if (inBoardZone() && !G.writing) drawFormPicker();
+  if (inBoardZone() && !G.writing && !G.exam) drawFormPicker();
   if (G.gongFx > 0) {
     ctx.strokeStyle = `rgba(255,244,200,${G.gongFx.toFixed(2)})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(sx(G.p.x), sy(G.p.y) - 24, (1 - G.gongFx) * 520, 0, 7); ctx.stroke();

@@ -139,6 +139,14 @@
   .tpick:hover, .tpick:focus-visible { border-color: var(--gold); outline: none; }
   .shopitem.sel { border-color: var(--gold); background: #3d2f45; }
   @media (max-height: 520px) { .tpick img { width: 40px; height: 64px; } .tpick .td { display: none; } }
+  .dist { display: flex; gap: 6px; justify-content: center; align-items: flex-end; height: 120px; margin: 6px 0; }
+  .dist .db { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; width: 28px; height: 100%; }
+  .dist .db i { display: block; width: 100%; border-radius: 3px 3px 0 0; }
+  .dist .db span { font-size: 12px; color: var(--muted); }
+  .grades { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 16px; text-align: left; margin: 6px auto; max-width: 480px; }
+  .grade { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .grade .gn { width: 56px; } .grade .gb { flex: 1; height: 7px; background: #1e1724; border-radius: 2px; overflow: hidden; }
+  .grade .gb i { display: block; height: 100%; background: var(--learn); } .grade .gg { width: 14px; text-align: right; font-weight: bold; }
   @keyframes blink { 50% { opacity: .35; } }
 </style>
 </head>
