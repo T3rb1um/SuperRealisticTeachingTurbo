@@ -1,7 +1,7 @@
 'use strict';
 /* =====================================================================
-   Klasse im Griff! – Prototyp (Graubox C)
-   Berufsschule, Klasse IM24 (Industriemechanik / Mechatronik)
+   Super Real Teaching Turbo – Prototyp
+   Berufsschule, Klasse Technik 1
    Störer mit Vorwarnung, Präsenz, Tafel mit Arbeitsformen, Kopierer,
    Pult-Ablage, Tür mit Zuspätkommern.
    Alle Spielzahlen stehen hier oben im CONFIG-Objekt.
@@ -682,7 +682,7 @@ let totalTaler = 0;
 let clockT = 0;
 let gust = 0, nextGust = rand(5, 10);
 
-/* Die Klasse IM24: 12 Azubis mit eigenem Look */
+/* Die Klasse Technik 1: 12 Azubis mit eigenem Look */
 const SKIN = ['#f9dcc0', '#f0c39c', '#d9a07a', '#b07850', '#8a5638', '#5e3a24'];
 const LOOKS = [
   { name: 'Jonas',   skin: SKIN[1], hair: '#3b2a1e', style: 'short',    jacket: '#3d4f7a', accent: '#e8823c', glasses: true },
@@ -1740,11 +1740,11 @@ function showFinal() {
   sfx.done();
   RUN.queue = ['over'];
   showCard(`
-    <h2>Zeugnis – Berufsschulblock IM24</h2>
+    <h2>Zeugnis – Berufsschulblock Technik 1</h2>
     <p style="color:var(--ink)">Gesamtschnitt der Klasse: <b style="color:var(--gold)">${avg.toFixed(1).replace('.', ',')}</b> (${words[Math.round(avg)]})${rec ? ' · <b style="color:#9fd39a">Neuer Rekord!</b>' : ` · Bester Schnitt bisher: ${bestGrade.toFixed(1).replace('.', ',')}`}</p>
     <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 14px;max-width:380px;margin:8px auto">${rows}</div>
     <p>Sterne gesammelt: <b style="color:var(--ink)">${RUN.stars || 0}</b> · Taler verdient: <b style="color:var(--ink)">${totalTaler}</b> · Game-Changer: <b style="color:var(--ink)">${Object.keys(RUN.ch).length}</b></p>
-    <p>Die IM24 sagt danke. Schöne Ferien!</p>
+    <p>Die Technik 1 sagt danke. Schöne Ferien!</p>
     <p class="go">Zum Start (Enter)</p>`);
 }
 
@@ -1881,8 +1881,8 @@ function rulesHtml() {
 function titleScreen() {
   state = 'title';
   showCard(`
-    <h1>Klasse im Griff!</h1>
-    <p>Berufsschule · Klasse IM24 (Industriemechanik) · Prototyp</p>
+    <h1>Super Real Teaching Turbo</h1>
+    <p>Berufsschule · Klasse Technik 1 · Prototyp</p>
     <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
     <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
       <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>

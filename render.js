@@ -1,6 +1,6 @@
 'use strict';
 /* =====================================================================
-   Klasse im Griff! – Grafik
+   Super Real Teaching Turbo – Grafik
    Doppelte Auflösung (768×432, 1 Kachel = 32 px). Gemütlicher Stil:
    Holz, warmes Licht, Pflanzen, viele kleine Animationen – in einem
    modernen Technik-Klassenraum einer Berufsschule.
