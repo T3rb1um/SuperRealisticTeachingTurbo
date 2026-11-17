@@ -126,14 +126,14 @@ const CONFIG = {
     test: { firstAt: 12, jitter: 0.4, patience: 28, helpMult: 2.5, helpFail: 0.4, quitHold: 1.0 },
     // Schwierigkeit am Beamer: seat = Lernen am Platz, bonus/dur = Test, fail/estop = Pannen, ev = Häufigkeit von PC/SPS/Fragen, every = Testwünsche
     levels: [
-      { name: 'LEICHT', label: 'Schwierigkeit leicht', seat: 0.4,  noise: 0.8, bonus: 6,  dur: 5, fail: 0.10, estop: 0.05, ev: 0.7, every: 12 },
-      { name: 'MITTEL', label: 'Schwierigkeit mittel', seat: 0.55, noise: 1.0, bonus: 10, dur: 7, fail: 0.20, estop: 0.12, ev: 1.0, every: 14 },
-      { name: 'SCHWER', label: 'Schwierigkeit schwer', seat: 0.75, noise: 1.2, bonus: 16, dur: 9, fail: 0.30, estop: 0.20, ev: 1.4, every: 16 },
+      { name: 'LEICHT', label: 'Schwierigkeit leicht', seat: 0.25, noise: 0.8, bonus: 3,  dur: 5, fail: 0.10, estop: 0.05, ev: 0.7, every: 12 },
+      { name: 'MITTEL', label: 'Schwierigkeit mittel', seat: 0.33, noise: 1.0, bonus: 4,  dur: 7, fail: 0.20, estop: 0.12, ev: 1.0, every: 14 },
+      { name: 'SCHWER', label: 'Schwierigkeit schwer', seat: 0.45, noise: 1.2, bonus: 6,  dur: 9, fail: 0.30, estop: 0.20, ev: 1.4, every: 16 },
     ],
     switchWrite: 0.8,          // E halten am Beamer zum Umschalten
     switchPause: 2,            // danach lädt der Beamer, die Klasse wartet
     sheetMult: 2.5,            // Datenblatt-Wünsche kommen seltener
-    pairBonus: 1.15,           // Paar arbeitet zusammen → lernt schneller
+    pairBonus: 1.1,            // Paar arbeitet zusammen → lernt schneller
     spawnMult: 1.25,           // Störer etwas seltener
     robot: { speed: 1.3, stuckChance: 0.25 },
   },         // Klemmbrett: so viele Blätter darf man beim Anschreiben halten

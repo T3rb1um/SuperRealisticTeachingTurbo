@@ -976,10 +976,10 @@ function drawLabOverlay() {
   if (!P) return;
   if (P.estop) bubble(sx(10), sy(3.9) - 66 + (blink(6) ? -2 : 0), PAL.red, 1, '!', COL.white, 13);
   else if (P.cur && P.cur.job && P.cur.job.stage === 'run') {
-    const X = sx(10), Y = sy(3.9) - 60, helping = G.labHold && G.labHold.kind === 'help';
-    rr(X - 26, Y, 52, 10, PAL.dark, 2); R(X - 24, Y + 2, Math.round(48 * Math.min(1, P.t / (P.dur || labLevel().dur))), 6, helping ? '#9fd39a' : '#5cc8c0');
-    ltext(helping ? 'HILFE X2.5' : 'TEST', X - (helping ? 19 : 8), Y - 9, helping ? '#9fd39a' : '#5cc8c0', 1);
-    if (!helping && atPlant()) ltext('E HALTEN = HELFEN', X - 33, Y + 14, COL.white, 1);
+    const X = sx(10), Y = sy(3.9) - 22, helping = G.labHold && G.labHold.kind === 'help';         // auf der Anlage, hinterer Rand
+    rr(X - 46, Y, 92, 12, PAL.dark, 2); R(X - 44, Y + 2, Math.round(88 * Math.min(1, P.t / (P.dur || labLevel().dur))), 8, helping ? '#9fd39a' : '#5cc8c0');
+    ltext(helping ? 'HILFE X2.5' : 'TEST', X - (helping ? 19 : 8), Y + 3, COL.white, 1);
+    if (!helping && atPlant()) ptext('E HALTEN = HELFEN', X, sy(7.5) + 6, COL.white, PAL.dark, 1);
   }
   if (G.netDown) bubble(sx(15.8), OY - 50 + (blink(4) ? -2 : 0), PAL.red, G.labHold && G.labHold.kind === 'net' ? G.labHold.t / CONFIG.lab.net.hold : 1, 'NET', COL.white, 16);
   if (G.robot && G.robot.stuck) bubble(sx(G.robot.x), sy(G.robot.y) - 100, '#9fd3f0', 1, '!', COL.white, 10);
