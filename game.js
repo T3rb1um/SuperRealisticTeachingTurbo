@@ -501,7 +501,7 @@ function setupTouch() {
   btn('btnZ', toggleView);
   $('btnZ').textContent = cam.mode === 'zoom' ? '-' : '+';
   $('fsBtn').addEventListener('click', e => { e.preventDefault(); toggleFullscreen(); $('fsBtn').blur(); });
-  btn('btnP', () => { if (state === 'play') { state = 'pause'; showCard('<h2>Pause</h2><p class="go">Weiter</p>'); } });
+  btn('btnP', () => { if (state === 'play') openMenu(); else if (state === 'pause') closeMenu(); });
   $('overlay').addEventListener('pointerdown', e => {
     initAudio();
     const b = e.target.closest('[data-buy]');
@@ -519,7 +519,8 @@ function setupTouch() {
     const pk = e.target.closest('[data-pick]');
     if (pk && state === 'choice') { pickChanger(+pk.dataset.pick); return; }
     if (['title', 'prep', 'end', 'shop', 'exam'].includes(state)) { if (e.target.closest('.go')) advance(); }   // sonst: Text scrollen
-    else if (state === 'pause') { state = 'play'; hideCard(); }
+    else if (state === 'rules') { if (e.target.closest('.go')) openMenu(); }
+    else if (state === 'pause') { const mb = e.target.closest('[data-menu]'); if (mb) menuAction(mb.dataset.menu); }
   });
 }
 
@@ -1833,22 +1834,34 @@ function updateHud() {
 }
 
 /* ========================================================== Screens */
+/* ------------------------------------------------------- Pausenmenü */
+const MENU = [['resume', 'Weiterspielen'], ['restart', 'Stunde neu starten'], ['rules', 'Regeln & Steuerung'], ['music', 'Musik'], ['fs', 'Vollbild'], ['title', 'Zum Hauptmenü']];
+let menuConfirm = false;
+function openMenu() {
+  state = 'pause';
+  const label = (id, n) => id === 'music' ? `Musik: ${music.on ? 'an' : 'aus'}` : id === 'title' && menuConfirm ? 'Wirklich? Der Stand seit dem letzten Speichern geht verloren.' : n;
+  showCard(`<h2>Pause</h2>
+    <div class="menu">${MENU.map(([id, n], i) => `<button class="mitem${id === 'title' && menuConfirm ? ' warn' : ''}" data-menu="${id}"><span class="k">${i + 1}</span>${label(id, n)}</button>`).join('')}</div>
+    <p class="keys touch-hide">Esc oder P = weiterspielen · 1–6 auswählen</p>`);
+}
+function closeMenu() { menuConfirm = false; state = 'play'; hideCard(); }
+function menuAction(id) {
+  if (id !== 'title') menuConfirm = false;
+  if (id === 'resume') return closeMenu();
+  if (id === 'restart') { menuConfirm = false; sfx.select(); startLesson(); return; }
+  if (id === 'rules') { state = 'rules'; showCard(`<h2>Regeln & Steuerung</h2>${rulesHtml()}<p class="go">Zurück (Esc)</p>`); return; }
+  if (id === 'music') { toggleMusic(); const b = $('btnM'); if (b) b.textContent = music.on ? '♪' : '–'; return openMenu(); }
+  if (id === 'fs') { toggleFullscreen(); return openMenu(); }
+  if (id === 'title') {
+    if (!menuConfirm) { menuConfirm = true; sfx.wrong(); return openMenu(); }
+    menuConfirm = false; RUN = null; applyModifiers(); newLesson(); lessonNo = 0; titleScreen();
+  }
+}
 function showCard(html) { $('card').innerHTML = html; $('overlay').classList.remove('hidden'); document.body.classList.add('overlay-open'); }
 function hideCard() { $('overlay').classList.add('hidden'); document.body.classList.remove('overlay-open'); }
 
-function titleScreen() {
-  state = 'title';
-  showCard(`
-    <h1>Klasse im Griff!</h1>
-    <p>Berufsschule · Klasse IM24 (Industriemechanik) · Prototyp</p>
-    <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
-    <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
-      <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
-    <p style="color:var(--ink);margin-top:6px">Raum <span class="touch-hide" style="color:var(--muted)">(R)</span>: ${ROOM_PICKS.map((n, i) => `<button class="rpick${i === roomPick ? ' sel' : ''}" data-room="${i}">${n}</button>`).join(' ')}
-      <span style="color:var(--muted)">${roomPick === 0 ? '· Wochen 1–3 Klassenraum, Woche 4 SPS-Labor' : '· zum Testen: alle Wochen in diesem Raum'}</span></p>
-    ${saveSlotsHtml('load') ? `<p style="color:var(--ink);margin-top:6px">Weiterspielen</p>${saveSlotsHtml('load')}` : ''}
-    <p style="color:var(--ink)">Ein Berufsschulblock: 4 Wochen, 2 Stunden pro Tag, jeden Freitag eine Arbeit, zum Schluss die Zwischenprüfung. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
-    <p class="rules">
+function rulesHtml() {
+  return `<p class="rules">
        <b style="color:#c9c6d0">Graue Blase</b>: wird unruhig. Stell dich in die Nähe oder drück E.<br>
        <b style="color:#f7d154">Gelbe Blase</b>: trödelt. Hingehen, E. Nach 6 s wird es <b style="color:#e8534a">laut</b>.<br>
        <b>Tafel</b>: davor mit 1 / 2 / 3 (oder Q) die Arbeitsform wählen, dann E halten.<br>
@@ -1863,7 +1876,21 @@ function titleScreen() {
        <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
        <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
-    <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>
+    <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>`;
+}
+function titleScreen() {
+  state = 'title';
+  showCard(`
+    <h1>Klasse im Griff!</h1>
+    <p>Berufsschule · Klasse IM24 (Industriemechanik) · Prototyp</p>
+    <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
+    <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
+      <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
+    <p style="color:var(--ink);margin-top:6px">Raum <span class="touch-hide" style="color:var(--muted)">(R)</span>: ${ROOM_PICKS.map((n, i) => `<button class="rpick${i === roomPick ? ' sel' : ''}" data-room="${i}">${n}</button>`).join(' ')}
+      <span style="color:var(--muted)">${roomPick === 0 ? '· Wochen 1–3 Klassenraum, Woche 4 SPS-Labor' : '· zum Testen: alle Wochen in diesem Raum'}</span></p>
+    ${saveSlotsHtml('load') ? `<p style="color:var(--ink);margin-top:6px">Weiterspielen</p>${saveSlotsHtml('load')}` : ''}
+    <p style="color:var(--ink)">Ein Berufsschulblock: 4 Wochen, 2 Stunden pro Tag, jeden Freitag eine Arbeit, zum Schluss die Zwischenprüfung. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
+    ${rulesHtml()}
     <p class="go">Neues Spiel (Enter, E oder tippen)</p>`);
 }
 
@@ -1879,7 +1906,7 @@ window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'F2'].includes(e.code)) e.preventDefault();
   initAudio();
   if (e.code === 'F2' || e.code === 'Backquote' || e.key === '^' || e.key === 'Dead') { debug = !debug; return; }
-  if (e.code === 'KeyM') { toggleMusic(); return; }
+  if (e.code === 'KeyM') { toggleMusic(); if (state === 'pause') openMenu(); return; }
   if (e.code === 'KeyF') { toggleFullscreen(); return; }
   keys.add(e.code);
   if (e.repeat) return;
@@ -1900,9 +1927,15 @@ window.addEventListener('keydown', e => {
   if (state === 'end') { const n = +e.key; if (n >= 1 && n <= SAVE_SLOTS) { saveGame(n); return; } }
   if (state === 'choice') { const n = +e.key; if (n >= 1 && n <= 3) pickChanger(n - 1); return; }
   if (state === 'shop') { const n = +e.key; if (n >= 1 && n <= 9) buy(n - 1); return; }
-  if (state === 'pause' && (e.code === 'KeyP' || e.code === 'Escape' || confirm)) { state = 'play'; hideCard(); return; }
+  if (state === 'rules') { if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'KeyP') openMenu(); return; }
+  if (state === 'pause') {
+    if (e.code === 'KeyP' || e.code === 'Escape') { closeMenu(); return; }
+    const n = +e.key; if (n >= 1 && n <= MENU.length) { menuAction(MENU[n - 1][0]); return; }
+    if (e.code === 'Enter') { closeMenu(); return; }
+    return;
+  }
   if (state === 'play') {
-    if (e.code === 'KeyP' || e.code === 'Escape') { state = 'pause'; showCard('<h2>Pause</h2><p class="go">P drücken zum Weiterspielen</p>'); return; }
+    if (e.code === 'KeyP' || e.code === 'Escape') { openMenu(); return; }
     if (e.code === 'KeyE' || e.code === 'Space') tap();
     const num = { Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2 }[e.code];
     if (num !== undefined) selectForm(num);
