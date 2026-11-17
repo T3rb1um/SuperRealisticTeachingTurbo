@@ -485,7 +485,6 @@ function labFloor(FX, FY, FW, FH) {
   for (let x = 0; x < FW; x += T) for (let y = 0; y < FH; y += T) if ((x / T + y / T) % 2) R(FX + x, FY + y, T, T, '#c2c6c2');
   seed = 41;
   for (let i = 0; i < 500; i++) px(FX + srnd() * FW, FY + srnd() * FH, '#b8bcb8');
-  for (const y of [3.95, 6.25]) { R(FX + 2 * T, sy(y), 12 * T, 4, '#8a9099'); R(FX + 2 * T, sy(y), 12 * T, 1, '#a9afb6'); }   // Bodenkanal
 }
 function labWall(wy) {
   const FX = OX, FW = 20 * T;
@@ -571,31 +570,131 @@ function draw3DPrinter(x, y) {
   R(hx, b.front + 6, 6, 4, '#f29a4e'); R(b.X + 10, b.front + 22, b.W - 20, 4, '#7cc47a');
   R(b.X + 4, b.Y + 4, 10, 4, '#7cc47a');
 }
+function labWall2(wy) {
+  const FX = OX, FW = 20 * T;
+  R(FX, OY - 40, FW, 4, '#2f6db5');
+  // Tafel: Whiteboard + großer Bildschirm
+  const bx = sx(4.6), by = wy + 6;
+  R(bx - 2, by - 2, 2.6 * T + 4, 50, '#9aa2ab'); R(bx, by, 2.6 * T, 46, '#f8f8f4');
+  ltext('E1  A1', bx + 6, by + 6, '#2f6db5', 1); R(bx + 6, by + 16, 40, 1, '#2f6db5'); R(bx + 6, by + 26, 60, 1, '#26232e'); R(bx + 30, by + 22, 2, 8, '#26232e'); R(bx + 36, by + 22, 2, 8, '#26232e'); disc(bx + 70, by + 26, 4, '#d94a3a');
+  const sx0 = sx(7.4), sy0 = wy + 4;
+  R(sx0 - 3, sy0 - 3, 4.4 * T + 6, 54, '#26232e'); R(sx0, sy0, 4.4 * T, 48, '#2b3a4a');
+  ltext('SPS: AMPELSTEUERUNG', sx0 + 6, sy0 + 5, '#9fd3f0', 1);
+  for (let r = 0; r < 3; r++) {
+    const yy = sy0 + 16 + r * 9;
+    R(sx0 + 6, yy, 2, 7, '#9fd3f0'); R(sx0 + 8, yy + 3, 110, 1, '#9fd3f0');
+    R(sx0 + 30, yy, 2, 7, '#7cc47a'); R(sx0 + 36, yy, 2, 7, '#7cc47a');
+    disc(sx0 + 112, yy + 3, 3, ['#d94a3a', '#f2c14e', '#7cc47a'][r]); R(sx0 + 128, yy, 2, 7, '#9fd3f0');
+  }
+  rmClock(sx(13.3), wy + 24);
+  // Schaltschrank-Verteiler und Not-Aus an der Wand
+  R(sx(15.0), wy + 10, 50, 56, '#d6d9dc'); R(sx(15.0), wy + 10, 50, 3, '#eef0f2'); R(sx(15.0) + 4, wy + 16, 42, 4, '#9aa2ab');
+  for (let i = 0; i < 6; i++) R(sx(15.0) + 6 + i * 7, wy + 22, 5, 10, i % 2 ? '#3a3d46' : '#f4f4f0');
+  rmEstop(sx(15.0) + 25, wy + 50);
+  rmSign(sx(17.6), wy + 30, 'warn');
+}
+function labSideWalls() {
+  // Fenster in der linken Wand, Türen in der rechten
+  const L = OX - 16, Rr = OX + 20 * T;
+  for (const y of [2.2, 4.8, 7.4]) {
+    const Y = sy(y);
+    R(L + 2, Y, 12, 2.0 * T, '#9fc7e0'); R(L + 4, Y + 4, 4, 2.0 * T - 8, '#d8eefa'); R(L + 2, Y + T - 1, 12, 2, '#e2e4e6');
+    ctx.fillStyle = 'rgba(255,240,200,.10)'; ctx.beginPath(); ctx.moveTo(OX, Y); ctx.lineTo(OX + 70, Y + 20); ctx.lineTo(OX + 70, Y + 2.0 * T + 20); ctx.lineTo(OX, Y + 2.0 * T); ctx.fill();
+  }
+  for (const y of [0.6, 7.9]) {
+    const Y = sy(y);
+    R(Rr, Y, 16, 1.8 * T, COL.oakDD); R(Rr + 2, Y + 2, 12, 1.8 * T - 4, COL.oak); R(Rr + 3, Y + 30, 3, 6, '#d9b25a');
+  }
+}
+function drawWallDesk(side) {                  // lange Reihe an der Wand: SPS-Trainer + PCs
+  const x = side < 0 ? 0.1 : 18.6, b = box(x, 2.4, 1.3, 7.2, 16, '#eceeef', '#9aa2ab', '#7d8590');
+  R(b.X, b.Y, b.W, 1, '#ffffff');
+  for (let n = 0; n < 6; n++) {
+    const Y = sy([3.1, 4.0, 5.6, 6.5, 8.1, 9.0][n]) - 16 - 30, X = b.X + (side < 0 ? 4 : b.W - 26);
+    R(X, Y, 22, 18, '#9aa2ab'); R(X, Y, 22, 2, '#c9ccd1'); R(X + 3, Y + 4, 16, 5, '#3a3d46');       // SPS-Trainer (von oben)
+    for (let j = 0; j < 4; j++) px(X + 5 + j * 4, Y + 6, blink(1.3 + j * 0.37, n) ? '#7cc47a' : '#2a4a2a');
+    for (let j = 0; j < 3; j++) R(X + 4 + j * 6, Y + 12, 3, 3, ['#d94a3a', '#7cc47a', '#f2c14e'][j]);
+    const MX = side < 0 ? b.X + 28 : b.X + 6;                                                       // Monitor im Profil, Bild zum Azubi
+    R(MX, Y - 6, 4, 26, '#26232e'); R(MX + (side < 0 ? 4 : -1), Y - 4, 1, 22, (n % 2) ? '#69b2ee' : '#7cc47a');
+    ctx.strokeStyle = '#e8853a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + 11, Y + 18); ctx.quadraticCurveTo(X + 11 + side * -10, Y + 26, MX + 2, Y + 20); ctx.stroke();
+  }
+}
+function rmSitSide(i, x, y, side) {            // sitzender Azubi im Profil, Blick zur Wand (side -1 links, +1 rechts)
+  const k = RKIDS[i % 12], X = sx(x), Y = sy(y), s = side;
+  softShadow(X, Y, 12, 3);
+  // Bürostuhl
+  R(X - 2, Y - 6, 3, 6, '#3a3d46'); R(X - 8, Y - 2, 16, 2, '#26232e');
+  R(X - 9, Y - 16, 16, 5, '#3a3d46'); R(X - s * 9 - 2, Y - 36, 4, 22, '#3a3d46');
+  // Beine: Oberschenkel nach vorn, Unterschenkel runter
+  R(s < 0 ? X - 14 : X, Y - 20, 14, 6, '#3a3f55'); R(s < 0 ? X - 15 : X + 10, Y - 16, 5, 14, '#3a3f55'); R(s < 0 ? X - 18 : X + 10, Y - 3, 8, 3, '#26232e');
+  // Oberkörper
+  const jc = k.jacket;
+  rr(X - 7, Y - 38, 14, 20, jc, 3); R(X - 7, Y - 30, 14, 2, k.accent); R(s < 0 ? X - 7 : X + 5, Y - 36, 2, 16, shade(jc, -0.2));
+  R(s < 0 ? X - 16 : X + 4, Y - 32, 12, 4, jc); R(s < 0 ? X - 18 : X + 14, Y - 32, 4, 4, k.skin);       // Arm zur Tastatur
+  drawHead(k, X - 8 + s * 2, Y - 54, 1, s, '');
+}
+function drawBigMPS(x, y) {                    // große Automatisierungsanlage (Stationen auf Profiltischen, Band im Kreis)
+  const w = 5.2, d = 3.6;
+  softShadow(sx(x) + w * T / 2, sy(y + d) + 4, w * T / 2 + 8, 8);
+  const b = box(x, y, w, d, 26, '#c9ccd1', '#9aa2ab', '#7d8590');
+  for (let i = 0; i < 8; i++) R(b.X + 2, b.Y + 4 + i * 14, b.W - 4, 1, '#b9bec5');                  // Profilnuten
+  for (let i = 0; i < 4; i++) R(b.X + 4 + i * (b.W - 8) / 3, b.front + 2, 3, 22, '#7d8590');
+  // Band als Rundlauf
+  const bx = b.X + 20, by = b.Y + 20, bw = b.W - 40, bh = b.D - 40;
+  R(bx, by, bw, 10, '#3a3d46'); R(bx, by + bh - 10, bw, 10, '#3a3d46'); R(bx, by, 10, bh, '#3a3d46'); R(bx + bw - 10, by, 10, bh, '#3a3d46');
+  const perim = 2 * (bw + bh) - 40;
+  for (let n = 0; n < 5; n++) {                                                                       // Werkstücke fahren im Kreis
+    let p = (clockT * 22 + n * perim / 5) % perim, px0, py0;
+    if (p < bw - 10) { px0 = bx + p; py0 = by + 1; }
+    else if ((p -= bw - 10) < bh - 10) { px0 = bx + bw - 10; py0 = by + p; }
+    else if ((p -= bh - 10) < bw - 10) { px0 = bx + bw - 10 - p; py0 = by + bh - 10; }
+    else { p -= bw - 10; px0 = bx; py0 = by + bh - 10 - p; }
+    R(px0 + 1, py0 + 1, 8, 8, ['#d94a3a', '#2f6db5', '#c9ccd1', '#26232e', '#d94a3a'][n]); R(px0 + 1, py0 + 1, 8, 2, 'rgba(255,255,255,.35)');
+  }
+  // Stationen innen: Magazin, Prüfen, Bearbeiten, Sortieren
+  const ix = bx + 18, iy = by + 18;
+  R(ix, iy - 24, 14, 34, '#e2e4e6'); R(ix + 2, iy - 22, 10, 30, 'rgba(160,210,240,.5)'); for (let i = 0; i < 4; i++) R(ix + 3, iy - 4 - i * 6, 8, 5, ['#d94a3a', '#2f6db5', '#c9ccd1', '#d94a3a'][i]);
+  R(ix + 30, iy - 4, 24, 14, '#2f6db5'); R(ix + 54, iy, 10 + Math.round(Math.sin(clockT * 3) * 4 + 4), 4, '#c9ccd1');        // Pneumatikzylinder
+  R(ix + 80, iy - 18, 6, 28, '#9aa2ab'); R(ix + 74, iy - 20, 22, 8, '#555c68'); R(ix + 82, iy - 12 + Math.round(Math.abs(Math.sin(clockT * 2)) * 8), 4, 8, '#c9ccd1');   // Bohrstation
+  for (let i = 0; i < 3; i++) { R(ix + 108 + i * 10, iy - 2, 8, 22, '#d6d9dc'); R(ix + 108 + i * 10, iy + 18, 8, 3, ['#d94a3a', '#2f6db5', '#c9ccd1'][i]); }   // Rutschen
+  // Signalsäulen + Bedienpulte
+  for (const [sx1, sy1] of [[b.X + 10, b.Y - 4], [b.X + b.W - 16, b.Y - 4]]) {
+    R(sx1 + 2, sy1 - 26, 2, 26, '#9aa2ab');
+    R(sx1, sy1 - 40, 6, 5, blink(2, sx1) ? '#d94a3a' : '#5a2a2a'); R(sx1, sy1 - 35, 6, 5, '#7a6a2a'); R(sx1, sy1 - 30, 6, 5, blink(1, sx1) ? '#7cc47a' : '#2a4a2a');
+  }
+  R(b.X + b.W / 2 - 16, b.Y + b.D - 14, 32, 12, '#3a3d46'); R(b.X + b.W / 2 - 12, b.Y + b.D - 12, 12, 6, '#69b2ee'); rmEstop(b.X + b.W / 2 + 8, b.Y + b.D - 8);
+}
 function drawLab() {
   const S = rmShell(20, 10, { wall: '#eef0f1', wallLow: '#dfe3e6', base: '#8a9099', side: '#3c4048', floor: labFloor });
-  labWall(S.wy);
+  labWall2(S.wy);
+  labSideWalls();
   const list = [];
-  list.push({ y: 1.35, f: () => {                                                          // Lehrertisch mit 2 Monitoren
-    const b = box(1.4, 0.2, 3, 1.1, 18, '#eceeef', '#9aa2ab', '#7d8590');
-    R(b.X + 8, b.Y - 18, 28, 20, '#26232e'); R(b.X + 10, b.Y - 16, 24, 14, '#2b3a4a'); R(b.X + 40, b.Y - 18, 28, 20, '#26232e'); R(b.X + 42, b.Y - 16, 24, 14, '#69b2ee');
-    R(b.X + 12, b.Y - 14, 12, 1, '#7cc47a'); R(b.X + 12, b.Y - 10, 16, 1, '#9fd3f0');
-    R(b.X + 20, b.Y + 6, 30, 6, '#3a3d46'); R(b.X + 74, b.Y + 4, 8, 8, COL.white);
+  list.push({ y: 0.9, f: () => {                                                         // Tisch mit Drucker (oben links)
+    const b = box(0.4, 0.15, 3.4, 0.75, 18, '#eceeef', '#9aa2ab', '#7d8590');
+    R(b.X + 6, b.Y - 18, 40, 26, '#d6d6dc'); R(b.X + 6, b.Y - 18, 40, 3, '#ececf0'); R(b.X + 10, b.Y - 10, 28, 6, '#3f424b'); R(b.X + 12, b.Y - 8, 24, 2, COL.white); R(b.X + 36, b.Y - 16, 8, 5, '#4f8fc9');
+    R(b.X + 54, b.Y - 2, 26, 14, COL.white); R(b.X + 56, b.Y - 4, 24, 14, '#f4f4ee');
+    draw3DPrinterAt(b.X + 84, b.Y + 6);
   } });
-  list.push({ y: 1.0, f: () => drawServerRack(18.6, 0.2) });
-  [2.6, 4.9, 7.2].forEach(dy => { list.push({ y: dy + 0.9, f: () => drawLabDesk(3.2, dy, 4.2) }); list.push({ y: dy + 0.9, f: () => drawLabDesk(8.4, dy, 4.2) }); });
+  list.push({ y: 2.6, f: () => {                                                         // Lehrerpult
+    const b = box(3.4, 1.6, 6.2, 1.0, 20, '#eceeef', '#9aa2ab', '#7d8590');
+    R(b.X + 20, b.Y - 18, 28, 20, '#26232e'); R(b.X + 22, b.Y - 16, 24, 14, '#2b3a4a'); R(b.X + 52, b.Y - 18, 28, 20, '#26232e'); R(b.X + 54, b.Y - 16, 24, 14, '#69b2ee');
+    R(b.X + 30, b.Y + 6, 34, 6, '#3a3d46'); R(b.X + 100, b.Y + 4, 30, 20, '#9aa2ab'); R(b.X + 104, b.Y + 8, 22, 6, '#3a3d46'); R(b.X + 160, b.Y + 6, 8, 8, COL.white);
+  } });
+  list.push({ y: 9.6, f: () => drawWallDesk(-1) });
+  list.push({ y: 9.6, f: () => drawWallDesk(1) });
+  list.push({ y: 8.4, f: () => drawBigMPS(7.4, 4.4) });
+  list.push({ y: 10.0, f: () => drawConveyor(8.3, 9.2, 3.4) });
+  list.push({ y: 10.0, f: () => { for (let i = 0; i < 3; i++) { const b = box(13.2 + i * 1.3, 9.3, 1.2, 0.7, 40, '#d6d9dc', '#b9bec5', '#9aa2ab'); R(b.X + 4, b.Y + 4, b.W - 8, 2, '#9aa2ab'); } } });   // Schränke
+  // Azubis: je Seite 3 Paare, Blick zur Wand
   let n = 0;
-  [2.6, 4.9, 7.2].forEach(dy => [4.25, 6.35, 9.45, 11.55].forEach(x => { const i = n++; list.push({ y: dy + 1.25, f: () => rmSeated(i, x, dy + 1.25) }); }));
-  list.push({ y: 4.0, f: () => drawConveyor(14.6, 3.1, 4.6) });
-  list.push({ y: 7.4, f: () => drawRobot(15.8, 6.0) });
-  list.push({ y: 9.8, f: () => draw3DPrinter(0.4, 8.9) });
-  list.push({ y: 9.75, f: () => { const b = box(1.7, 8.9, 1.4, 0.8, 30, '#e2e4e6', '#c9ccd1', '#9aa2ab'); R(b.X + 6, b.Y + 4, 30, 6, COL.white); ltext('DRUCK', b.X + 8, b.front + 8, '#3a3d46', 1); } });
-  list.push({ y: 2.1, f: () => rmTeacher(7.9, 2.1) });
+  for (const side of [-1, 1]) for (const y of [3.1, 4.0, 5.6, 6.5, 8.1, 9.0]) { const i = n++; list.push({ y, f: () => rmSitSide(i, side < 0 ? 2.15 : 17.85, y, side) }); }
+  list.push({ y: 3.3, f: () => rmTeacher(6.6, 3.3) });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
-  rmDoor(16.6, 10);
   // kühles LED-Licht
-  ctx.fillStyle = 'rgba(220,240,255,.08)'; ctx.fillRect(OX, OY, 20 * T, 10 * T);
-  for (const x of [5, 10, 15]) { const g = ctx.createRadialGradient(sx(x), sy(5), 10, sx(x), sy(5), 160); g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(sx(x) - 160, sy(5) - 160, 320, 320); }
+  ctx.fillStyle = 'rgba(220,240,255,.07)'; ctx.fillRect(OX, OY, 20 * T, 10 * T);
+  for (const x of [5, 10, 15]) { const g = ctx.createRadialGradient(sx(x), sy(5), 10, sx(x), sy(5), 170); g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(sx(x) - 170, sy(5) - 170, 340, 340); }
 }
+function draw3DPrinterAt(X, Y) { R(X, Y - 26, 20, 26, '#3a3d46'); R(X + 2, Y - 22, 16, 18, 'rgba(190,225,245,.4)'); R(X + 4 + Math.round((Math.sin(clockT * 2) + 1) * 5), Y - 20, 4, 3, '#f29a4e'); R(X + 4, Y - 8, 12, 3, '#7cc47a'); }
 
 /* ============================================================ Ablauf */
 render = function () {
