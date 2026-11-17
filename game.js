@@ -405,6 +405,10 @@ function setupTouch() {
     initAudio();
     const b = e.target.closest('[data-buy]');
     if (b && state === 'shop') { buy(+b.dataset.buy); return; }
+    const sv = e.target.closest('[data-save]');
+    if (sv && state === 'end') { saveGame(+sv.dataset.save); return; }
+    const ld = e.target.closest('[data-load]');
+    if (ld && state === 'title') { loadGame(+ld.dataset.load); return; }
     const tb = e.target.closest('[data-teacher]');
     if (tb && state === 'title') { pickTeacher(+tb.dataset.teacher); return; }
     const pr = e.target.closest('[data-prep]');
@@ -470,6 +474,38 @@ const PREP = {
 };
 const prepPicks = () => { const lvl = (RUN.week - 1) * CONFIG.week.days.length + RUN.day; return lvl < 2 ? 0 : lvl < 5 ? 1 : 2; };
 const prepOn = id => !!(RUN && (RUN.prep[id] || TEACHER_PICK[RUN.teacherPick].routine === id));
+
+/* Spielstände: 3 Plätze im Browser (localStorage). Gespeichert wird am Ende einer Stunde. */
+const SAVE_SLOTS = 3;
+function readSave(n) { try { return JSON.parse(localStorage.getItem('kig_save_' + n) || 'null'); } catch (e) { return null; } }
+function saveLabel(sv) {
+  if (!sv) return 'leer';
+  const r = sv.run, d = new Date(sv.at);
+  const tn = TEACHERS[TEACHER_PICK[r.teacherPick].idx].name;
+  return `Woche ${r.week}, ${CONFIG.week.days[r.day]}, nach Std. ${r.lesson + 1} · ${tn} · ${r.taler} T · ${d.toLocaleDateString('de-DE')} ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+}
+function saveGame(n) {
+  try { localStorage.setItem('kig_save_' + n, JSON.stringify({ at: Date.now(), run: RUN })); }
+  catch (e) { toast('Speichern hat nicht geklappt (der Browser erlaubt hier keinen Speicher).'); return; }
+  sfx.done(); toast('Gespeichert auf Platz ' + n + '.');
+  const el = document.querySelector(`[data-save="${n}"] .sl`); if (el) el.textContent = saveLabel(readSave(n));
+}
+function loadGame(n) {
+  const sv = readSave(n); if (!sv) { sfx.wrong(); return; }
+  RUN = sv.run; teacherPick = RUN.teacherPick;
+  RUN.kidLearn = RUN.kidLearn || new Array(12).fill(0); RUN.kidFocus = RUN.kidFocus || new Array(12).fill(1);
+  applyModifiers(); newLesson();
+  state = 'end'; advance();                                    // weiter mit dem, was nach der Stunde kam
+}
+function saveSlotsHtml(mode) {   // mode: 'save' (Ende der Stunde) oder 'load' (Titel)
+  const rows = [];
+  for (let n = 1; n <= SAVE_SLOTS; n++) {
+    const sv = readSave(n);
+    if (mode === 'load' && !sv) continue;
+    rows.push(`<button class="slot" data-${mode}="${n}"><span class="k">${n}</span><span class="sl">${saveLabel(sv)}</span></button>`);
+  }
+  return rows.length ? `<div class="slots">${rows.join('')}</div>` : '';
+}
 
 function newRun() { RUN = { week: 1, day: 0, lesson: 0, taler: 0, weekLearn: 0, up: {}, ch: {}, queue: [], teacherPick, prep: {}, kidLearn: new Array(12).fill(0), kidFocus: new Array(12).fill(1) }; newDay(); }
 function newDay() {
@@ -666,7 +702,10 @@ function reward(k) {
   float(sx(k ? k.x : G.p.x), sy(k ? k.y : G.p.y) - 64, '+' + CONFIG.taler.perTask, PAL.yellow);
 }
 function makeIdle(k) { k.state = 'idle'; k.t = 0; k.spreadT = 0; }
-function backToWork(k, calm) { k.state = G.supply <= 0 && !CONFIG.board.review ? 'done' : 'work'; k.t = 0; k.pres = 0; k.spreadT = 0; k.calm = calm; }
+function backToWork(k, calm) {
+  k.state = G.supply <= 0 && !CONFIG.board.review ? 'done' : 'work'; k.t = 0; k.pres = 0; k.spreadT = 0; k.calm = calm;
+  if (k.needsSheet && !G.exam) k.state = 'wait';                  // will immer noch sein Blatt
+}
 
 function useCopier() {
   const C = G.copier, CC = CONFIG.copier;
@@ -810,7 +849,7 @@ function selectForm(i) {
 function finishWriting() {
   G.formIdx = G.formSel;
   G.supply = 100; G.writeProg = 0; G.writing = false; G.needRelease = true;
-  G.subject = G.nextSubject; G.nextSubject = null;
+  G.subject = G.nextSubject || pick(teacherSubjects()); G.nextSubject = null;
   G.emptyT = 0;
   G.kids.forEach(k => { if (k.state === 'done') k.state = 'work'; });
   reward(null);
@@ -821,8 +860,12 @@ function requestGroupSheets() {          // Gruppenarbeit: pro Gruppe ein Blatt
   {
     const groups = form().groupSheets === 2 ? [[0, 1], [2, 3]] : CONFIG.kids.cols.map((_, c) => [c]);
     groups.forEach(cs => {
-      const grp = G.kids.filter(k => cs.includes(k.c) && (k.state === 'work' || k.state === 'fidget'));
-      if (grp.length && !G.kids.some(k => cs.includes(k.c) && k.state === 'wait')) { const k = pick(grp); k.state = 'wait'; k.t = 0; }
+      const mine = G.kids.filter(k => cs.includes(k.c));
+      if (mine.some(k => k.state === 'wait' || k.needsSheet)) return;          // Gruppe wartet schon
+      const free = mine.filter(k => k.state === 'work' || k.state === 'fidget' || k.state === 'done');
+      if (free.length) { const k = pick(free); k.state = 'wait'; k.t = 0; return; }
+      const busy = mine.filter(k => isSeated(k));                              // alle gerade unruhig: Wunsch merken
+      if (busy.length) pick(busy).needsSheet = true;
     });
   }
 }
@@ -1191,6 +1234,8 @@ function endLesson() {
     <p style="margin-top:8px;color:var(--ink)">Woran lag's?</p>
     <div class="loss">${sum > 0.5 ? rows : '<p>Nichts verloren. Respekt!</p>'}</div>
     <p class="test">Testwerte: nichts zu tun ${Math.round(G.m.free / G.t * 100)} % · Ø gleichzeitige Probleme ${(G.m.probInt / G.t).toFixed(1)} · max ${G.m.maxOpen}</p>
+    <p style="margin-top:8px;color:var(--ink)">Spielstand speichern <span class="touch-hide" style="color:var(--muted)">(Taste 1–3)</span></p>
+    ${saveSlotsHtml('save')}
     <p class="go">${goText} (Enter)</p>`);
 }
 
@@ -1368,6 +1413,7 @@ function titleScreen() {
     <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
     <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
       <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
+    ${saveSlotsHtml('load') ? `<p style="color:var(--ink);margin-top:6px">Weiterspielen</p>${saveSlotsHtml('load')}` : ''}
     <p style="color:var(--ink)">Eine Woche, 2 Stunden pro Tag, am Freitag Klassenarbeit. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
     <p class="rules">
        <b style="color:#c9c6d0">Graue Blase</b>: wird unruhig. Stell dich in die Nähe oder drück E.<br>
@@ -1383,7 +1429,7 @@ function titleScreen() {
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>
-    <p class="go">Start (Enter, E oder tippen)</p>`);
+    <p class="go">Neues Spiel (Enter, E oder tippen)</p>`);
 }
 
 function pickTeacher(i) {
@@ -1415,6 +1461,7 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (['end', 'shop', 'exam'].includes(state) && e.code === 'Enter') { advance(); return; }
+  if (state === 'end') { const n = +e.key; if (n >= 1 && n <= SAVE_SLOTS) { saveGame(n); return; } }
   if (state === 'choice') { const n = +e.key; if (n >= 1 && n <= 3) pickChanger(n - 1); return; }
   if (state === 'shop') { const n = +e.key; if (n >= 1 && n <= 9) buy(n - 1); return; }
   if (state === 'pause' && (e.code === 'KeyP' || e.code === 'Escape' || confirm)) { state = 'play'; hideCard(); return; }

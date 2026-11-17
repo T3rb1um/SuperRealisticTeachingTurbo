@@ -147,6 +147,11 @@
   .grade { display: flex; align-items: center; gap: 6px; font-size: 12px; }
   .grade .gn { width: 56px; } .grade .gb { flex: 1; height: 7px; background: #1e1724; border-radius: 2px; overflow: hidden; }
   .grade .gb i { display: block; height: 100%; background: var(--learn); } .grade .gg { width: 14px; text-align: right; font-weight: bold; }
+  .slots { display: flex; flex-direction: column; gap: 4px; margin: 4px auto 6px; max-width: 520px; }
+  .slot { display: flex; gap: 8px; align-items: center; font: inherit; font-size: 12px; color: var(--ink); background: #2e2335;
+    border: 2px solid #1e1724; border-radius: 6px; padding: 5px 8px; cursor: pointer; text-align: left; }
+  .slot:hover, .slot:focus-visible { border-color: var(--gold); outline: none; }
+  .slot .k { color: var(--gold); } .slot .sl { color: var(--muted); font-weight: normal; }
   @keyframes blink { 50% { opacity: .35; } }
 </style>
 </head>
