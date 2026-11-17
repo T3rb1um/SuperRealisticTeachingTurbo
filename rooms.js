@@ -473,7 +473,8 @@ function drawElecWall(x, y, ph) {              // große Steckwand mit Bagger-Ar
 }
 function drawBins(x, y) { const X = sx(x), Y = sy(y); for (let i = 0; i < 3; i++) { R(X + i * 18, Y - 22, 16, 22, '#f2f2ee'); R(X + i * 18, Y - 24, 16, 3, ['#f2c14e', '#2f6db5', '#9aa2ab'][i]); } }
 function drawHoseRail() {                      // kurze blaue Schienen mit orangen Abgasschläuchen über den Prüfständen
-  for (const [rx, ry, X, end] of [[sx(14.0), sy(8.4) - 124, sx(14.4) + 23, sy(8.4) - 80], [sx(14.8), sy(12.5) - 112, sx(15.4) + 10, sy(12.5) - 58]]) {
+  const B = HALL.motorB, A = HALL.motorA;
+  for (const [rx, ry, X, end] of [[sx(B.x - 0.4), sy(B.y) - 124, sx(B.x) + 23, sy(B.y) - 80], [sx(A.x + 1.2), sy(A.y) - 112, sx(A.x + 1.8) + 10, sy(A.y) - 58]]) {
     R(rx, ry, 2.4 * T, 6, '#2f6db5'); R(rx, ry, 2.4 * T, 2, '#5a8fd6');
     R(X - 4, ry + 6, 10, 6, '#3a3d46');
     for (let yy = ry + 12, i = 0; yy < end; yy += 4, i++) R(X - 3 + Math.round(Math.sin(i * 0.9 + clockT) * 1), yy, 8, 3, i % 2 ? '#d98a4a' : '#c47a3a');
@@ -485,6 +486,7 @@ function hallWorker(i, x, y, face) {           // Azubi in Arbeitshose mit Refle
   R(X - 6, Y - 12, 12, 10, '#26304a'); R(X - 6, Y - 7, 5, 2, '#d8e86a'); R(X + 1, Y - 7, 5, 2, '#d8e86a'); R(X - 6, Y - 6, 5, 1, '#e6e8ea'); R(X + 1, Y - 6, 5, 1, '#e6e8ea');
   R(X - 7, Y - 2, 6, 2, '#26232e'); R(X + 1, Y - 2, 6, 2, '#26232e');
 }
+const HALL = { motorA: { x: 13.2, y: 10.0 }, motorB: { x: 19.8, y: 7.0 } };
 function drawHall() {
   const S = rmShell(30, 13, { wall: '#e2e5e8', side: '#4a525c', base: '#7a838e', floor: hallFloor });
   hallWall(S.wy);
@@ -510,20 +512,20 @@ function drawHall() {
     R(ex + 22, ey - 26, 2, 26, '#9aa2ab');                                                               // Gasdruckfeder
   } });
   // Motoren: einer an der Wand, einer in den Raum gedreht
-  list.push({ y: 12.5, f: () => drawTestStand(13.6, 12.5, '#e8b830') });
-  list.push({ y: 8.4, f: () => drawTestStandFront(14.4, 8.4) });
-  list.push({ y: 10.4, f: () => drawTrolley(13.8, 9.6) });
+  list.push({ y: HALL.motorA.y, f: () => drawTestStand(HALL.motorA.x, HALL.motorA.y, '#e8b830') });
+  list.push({ y: HALL.motorB.y, f: () => drawTestStandFront(HALL.motorB.x, HALL.motorB.y) });
+  list.push({ y: 10.6, f: () => drawTrolley(16.6, 9.8) });
   // Elektro-Steckwände (groß), etwas höher
-  list.push({ y: 11.3, f: () => drawElecWall(1.0, 11.3, 0) });
-  list.push({ y: 11.3, f: () => drawElecWall(6.4, 11.3, 2) });
+  list.push({ y: 9.9, f: () => drawElecWall(1.6, 9.9, 0) });
+  list.push({ y: 9.9, f: () => drawElecWall(7.0, 9.9, 2) });
   list.push({ y: 5.0, f: () => drawMobileBoard(10.4, 5.0) });
   list.push({ y: 4.0, f: () => drawSmartboard(6.6, 4.0) });
   list.push({ y: 12.7, f: () => { const X = sx(29.4), Y = sy(9.4); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
   // Azubis (12)
   [9.8, 11.9, 14.9, 17.0].forEach((x, n) => list.push({ y: 1.9, f: () => hallWorker(n, x, 1.9, 'up') }));          // Hydraulik
-  [[1.9, 4], [3.4, 5], [7.3, 6], [8.8, 7]].forEach(([x, i]) => list.push({ y: 12.1, f: () => hallWorker(i, x, 12.1, 'up') }));   // Elektrowände
-  list.push({ y: 12.8, f: () => hallWorker(8, 13.1, 12.8, 'right') });                                           // Motor an der Wand
-  list.push({ y: 8.9, f: () => hallWorker(9, 13.7, 8.9, 'right') });                                           // Motor im Raum
+  [[2.5, 4], [4.0, 5], [7.9, 6], [9.4, 7]].forEach(([x, i]) => list.push({ y: 10.7, f: () => hallWorker(i, x, 10.7, 'up') }));   // Elektrowände
+  list.push({ y: 10.3, f: () => hallWorker(8, 12.7, 10.3, 'right') });                                           // Motor an der Wand
+  list.push({ y: 7.5, f: () => hallWorker(9, 19.1, 7.5, 'right') });                                           // Motor im Raum
   list.push({ y: 11.6, f: () => hallWorker(10, 21.0, 11.6, 'right') });                                          // Radlader-Motor
   list.push({ y: 12.4, f: () => hallWorker(11, 22.3, 12.4, 'up') });
   list.push({ y: 5.7, f: () => rmTeacher(13.4, 5.7, 'left') });
