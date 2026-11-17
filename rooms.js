@@ -758,13 +758,14 @@ function drawLab() {
   list.push({ y: 9.6, f: () => drawWallDesk(1) });
   list.push({ y: 7.6, f: () => drawBigMPS(7.4, 3.9) });
   list.push({ y: 10.0, f: () => drawConveyor(3.0, 9.2, 3.2) });
-  list.push({ y: 10.0, f: () => { for (let i = 0; i < 3; i++) { const b = box(12.0 + i * 1.3, 9.45, 1.2, 0.7, 40, '#d6d9dc', '#b9bec5', '#9aa2ab'); R(b.X + 4, b.Y + 4, b.W - 8, 2, '#9aa2ab'); } } });   // Schränke links neben der Tür
+  list.push({ y: 10.0, f: () => { for (let i = 0; i < 3; i++) { const b = box(11.4 + i * 1.3, 9.3, 1.2, 0.7, 34, '#d6d9dc', '#b9bec5', '#9aa2ab'); R(b.X + 4, b.Y + 4, b.W - 8, 2, '#9aa2ab'); } } });   // Schränke links neben der Tür
   const rp = robotPos(); list.push({ y: rp[1], f: () => drawMobileRobot(rp[0], rp[1]) });
   // Azubis: je Seite 3 Paare, Blick zur Wand
   let n = 0;
   for (const side of [-1, 1]) for (const y of LAB_PAIRS.flat()) { const i = n++; list.push({ y, f: () => rmSitSide(i, side < 0 ? 2.15 : 17.85, y, side) }); }
   list.push({ y: 3.1, f: () => rmTeacher(8.6, 3.1) });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
+  { const dm = sx(16.1); R(dm, sy(9.35), 56, 18, '#6b6f78'); R(dm + 3, sy(9.35) + 3, 50, 12, '#858a94'); for (let i = 0; i < 8; i++) R(dm + 5 + i * 6, sy(9.35) + 5, 3, 8, '#767b85'); }   // Fußmatte
   rmDoor(15.9, 10);                                                                                  // Tür vorne
   // kühles LED-Licht
   ctx.fillStyle = 'rgba(220,240,255,.07)'; ctx.fillRect(OX, OY, 20 * T, 10 * T);
@@ -783,7 +784,7 @@ function drawMobileRobot(x, y) {               // kleiner Fahrroboter: runde Bas
   R(X + 10, Y - 76, 6, 10, '#c9ccd1'); disc(X + 13, Y - 78, 3, '#d94a3a');                           // Not-Aus
 }
 function robotPos() {                          // fährt hin und zurück: rechts oben → um die Anlage links herum → vorne bis vor die Schränke
-  const P = [[15.4, 3.4], [6.6, 3.4], [6.6, 8.9], [11.2, 8.9]];
+  const P = [[15.4, 3.4], [6.6, 3.4], [6.6, 8.9], [10.6, 8.9]];
   const L = P.slice(1).map((q, i) => Math.hypot(q[0] - P[i][0], q[1] - P[i][1])), tot = L.reduce((a, b) => a + b, 0);
   let d = (clockT * 0.9) % (2 * tot); if (d > tot) d = 2 * tot - d;
   for (let i = 0; i < L.length; i++) { if (d <= L[i]) { const f = d / L[i]; return [P[i][0] + (P[i + 1][0] - P[i][0]) * f, P[i][1] + (P[i + 1][1] - P[i][1]) * f]; } d -= L[i]; }
