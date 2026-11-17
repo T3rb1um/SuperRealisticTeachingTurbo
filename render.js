@@ -181,6 +181,35 @@ function drawFigure(fig, x, y, c) {       // Tafelskizzen (im 16-px-Raster, dopp
     R(2, 2, 24, 4, c); R(2, 16, 24, 4, c);
     R(4, 8, 20, 1, c); R(4, 14, 20, 1, c); R(4, 8, 1, 7, c); R(23, 8, 1, 7, c);
     R(14, 6, 1, 2, '#f2c14e'); R(14, 15, 1, 1, '#f2c14e');
+  } else if (fig === 'series') {                       // zwei Widerstände in Reihe
+    R(2, 3, 24, 1, c); R(2, 20, 24, 1, c); R(2, 3, 1, 18, c); R(25, 3, 1, 18, c);
+    for (const x0 of [5, 15]) { R(x0, 1, 7, 5, bg); R(x0, 1, 7, 1, c); R(x0, 5, 7, 1, c); R(x0, 1, 1, 5, c); R(x0 + 6, 1, 1, 5, c); }
+    R(0, 10, 5, 1, c); R(1, 13, 3, 1, c); R(2, 11, 1, 2, bg);
+  } else if (fig === 'bulb') {                         // Glühlampe
+    pcircle(14, 8, 6, c); R(11, 14, 7, 1, c); R(12, 16, 5, 1, c); R(12, 18, 5, 1, c);
+    R(12, 6, 1, 4, c); R(16, 6, 1, 4, c); R(13, 9, 3, 1, c);
+    if (Math.floor(t * 2) % 2) { R(4, 3, 3, 1, '#f2c14e'); R(22, 3, 3, 1, '#f2c14e'); R(3, 9, 3, 1, '#f2c14e'); R(23, 9, 3, 1, '#f2c14e'); }
+  } else if (fig === 'wrench') {                       // Schraubenschlüssel
+    R(4, 15, 3, 3, c); R(6, 13, 3, 3, c); R(8, 11, 3, 3, c); R(10, 9, 3, 3, c); R(12, 7, 3, 3, c);
+    pcircle(17, 5, 4, c); R(17, 1, 4, 4, bg); R(18, 3, 1, 1, c);
+    R(3, 17, 1, 3, c); R(5, 19, 3, 1, c);
+  } else if (fig === 'speech') {                       // Sprechblase
+    R(3, 2, 22, 1, c); R(3, 14, 22, 1, c); R(2, 3, 1, 11, c); R(25, 3, 1, 11, c);
+    R(6, 15, 1, 3, c); R(7, 17, 1, 1, c); R(8, 15, 1, 2, c);
+    ltext('HI!', 8, 6, c);
+  } else if (fig === 'warn') {                         // Warndreieck
+    for (let i = 0; i < 9; i++) { R(13 - i, 2 + i * 2, 1, 2, c); R(14 + i, 2 + i * 2, 1, 2, c); }
+    R(5, 19, 18, 1, c); R(13, 7, 2, 6, '#f2c14e'); R(13, 15, 2, 2, '#f2c14e');
+  } else if (fig === 'chart') {                        // Balkendiagramm
+    R(2, 20, 24, 1, c); R(2, 2, 1, 19, c);
+    const hs = [6, 10, 8, 15];
+    hs.forEach((h, i) => R(5 + i * 5, 20 - h, 3, h, i === 3 ? '#f2c14e' : c));
+  } else if (fig === 'flow') {                         // Ablauf mit Pfeilen
+    for (let i = 0; i < 3; i++) { const y0 = 1 + i * 7; R(4, y0, 12, 5, bg); R(4, y0, 12, 1, c); R(4, y0 + 4, 12, 1, c); R(4, y0, 1, 5, c); R(15, y0, 1, 5, c); if (i < 2) { R(9, y0 + 5, 1, 2, c); } }
+    R(19, 3, 5, 1, c); R(23, 2, 1, 3, c); R(19, 17, 5, 1, c);
+  } else if (fig === 'pie') {                          // Tortendiagramm
+    pcircle(13, 11, 8, c); R(13, 3, 1, 8, c); R(13, 11, 7, 1, c);
+    for (let i = 0; i < 6; i++) R(14 + i, 10 - i, 1, 1, '#f2c14e');
   } else if (fig === 'cylinder') {
     R(2, 6, 18, 1, c); R(2, 15, 18, 1, c); R(2, 6, 1, 10, c); R(19, 6, 1, 10, c);
     const s = Math.round((Math.sin(t * 1.5) + 1) * 3);

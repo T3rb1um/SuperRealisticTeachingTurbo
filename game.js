@@ -210,14 +210,28 @@ function ptext(str, x, y, color, outline = PAL.dark, sc = 2) {
 
 /* Tafelbilder: Berufsschule Metall/Elektro. Zeile 0 = Überschrift, 1–4 = Aufgaben. */
 const EXAM_SUBJECT = { lines: ['KLASSENARBEIT', 'RUHE BITTE!', 'KEIN SPICKEN', 'HANDYS AUS', 'VIEL ERFOLG!'], fig: 'gears' };
+// Tafelbilder je Fach. teacher = Index in TEACHERS (0 Sommer, 1 Brandt, 2 Demir, 3 Roth, 4 Adeyemi)
 const SUBJECTS = [
-  { lines: ['GETRIEBE', 'I = Z2 : Z1', 'Z1 = 12', 'Z2 = 36', 'I = ?'], fig: 'gears' },
-  { lines: ['OHMSCHES GES.', 'U = R X I', 'R = 220', 'U = 12 V', 'I = ?'], fig: 'circuit' },
-  { lines: ['WELLE-NABE', '1. PASSFEDER', '2. KEILWELLE', '3. PRESSVERB.', '4. VORTEILE?'], fig: 'shaft' },
-  { lines: ['SPS GRUNDL.', '1. UND', '2. ODER', '3. NICHT', '4. TABELLE'], fig: 'gate' },
-  { lines: ['PASSUNGEN', '1. H7 / G6', '2. SPIEL', '3. UEBERMASS', '4. TOLERANZ'], fig: 'fit' },
-  { lines: ['PNEUMATIK', '1. ZYLINDER', '2. 5/2-WEGEV.', '3. DROSSEL', '4. SCHALTPLAN'], fig: 'cylinder' },
+  // Herr Demir – Metalltechnik (auch Frau Sommer)
+  { teacher: [2, 0], lines: ['GETRIEBE', 'I = Z2 : Z1', 'Z1 = 12', 'Z2 = 36', 'I = ?'], fig: 'gears' },
+  { teacher: [2, 0], lines: ['WELLE-NABE', '1. PASSFEDER', '2. KEILWELLE', '3. PRESSVERB.', '4. VORTEILE?'], fig: 'shaft' },
+  { teacher: [2, 0], lines: ['PASSUNGEN', '1. H7 / G6', '2. SPIEL', '3. UEBERMASS', '4. TOLERANZ'], fig: 'fit' },
+  { teacher: [2, 0], lines: ['PNEUMATIK', '1. ZYLINDER', '2. 5/2-WEGEV.', '3. DROSSEL', '4. SCHALTPLAN'], fig: 'cylinder' },
+  // Herr Brandt – Elektrotechnik
+  { teacher: [1], lines: ['OHMSCHES GES.', 'U = R X I', 'R = 220', 'U = 12 V', 'I = ?'], fig: 'circuit' },
+  { teacher: [1], lines: ['REIHENSCHALT.', 'R = R1 + R2', 'R1 = 100', 'R2 = 220', 'R = ?'], fig: 'series' },
+  { teacher: [1], lines: ['LEISTUNG', 'P = U X I', 'U = 230 V', 'I = 2 A', 'P = ?'], fig: 'bulb' },
+  { teacher: [1], lines: ['SPS GRUNDL.', '1. UND', '2. ODER', '3. NICHT', '4. TABELLE'], fig: 'gate' },
+  // Frau Roth – Englisch
+  { teacher: [3], lines: ['VOCABULARY', 'SCREW-SCHRAUBE', 'NUT-MUTTER', 'GEAR-ZAHNRAD', 'DRILL-BOHRER'], fig: 'wrench' },
+  { teacher: [3], lines: ['SIMPLE PAST', 'WORK-WORKED', 'GO-WENT', 'SEE-SAW', 'MAKE-MADE'], fig: 'speech' },
+  { teacher: [3], lines: ['SAFETY FIRST', 'WEAR GLOVES!', 'WEAR GOGGLES!', 'NO PHONES!', 'STOP BUTTON'], fig: 'warn' },
+  // Frau Adeyemi – BWL
+  { teacher: [4], lines: ['KOSTEN', '1. FIXKOSTEN', '2. VARIABEL', '3. GESAMT = ?', '4. PRO STUECK'], fig: 'chart' },
+  { teacher: [4], lines: ['BESCHAFFUNG', '1. ANFRAGE', '2. ANGEBOT', '3. BESTELLUNG', '4. RECHNUNG'], fig: 'flow' },
+  { teacher: [4], lines: ['AUSBILDUNG', '1. VERTRAG', '2. RECHTE', '3. PFLICHTEN', '4. PROBEZEIT'], fig: 'pie' },
 ];
+const teacherSubjects = () => { const s = SUBJECTS.filter(x => x.teacher.includes(CONFIG.teacher || 0)); return s.length ? s : SUBJECTS; };
 
 /* ----------------------------------------------------------- Sound */
 let actx = null;
@@ -557,7 +571,7 @@ function newLesson() {
     loss: { stoerer: 0, tafel: 0, kopierer: 0, tuer: 0, fehl: 0 },
     m: { free: 0, probInt: 0, maxOpen: 0 },
     supply: 100, formIdx: CONFIG.startForm, formSel: CONFIG.startForm,
-    subject: pick(SUBJECTS), nextSubject: null,
+    subject: pick(teacherSubjects()), nextSubject: null,
     writing: false, writeProg: 0, writeIdle: 0, needRelease: false,
     emptyT: 0, waveT: 0,
     spawnT: CONFIG.kids.spawnInterval, sheetT: CONFIG.copier.firstRequestAt,
@@ -840,7 +854,7 @@ function update(dt) {
   const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry === 0 && !asking.length && !G.explaining && (G.supply < 99.5 || G.formSel !== G.formIdx);
   if (hold && canWrite) {
     if (!G.writing && G.writeProg === 0) {
-      G.nextSubject = pick(SUBJECTS.filter(s => s !== G.subject));
+      G.nextSubject = pick(teacherSubjects().filter(s => s !== G.subject));
       if (B.beamer && RUN && RUN.beamerUpdate) { G.beamerDelay = 4; RUN.beamerUpdate = false; float(sx(10), sy(0) - 60, 'UPDATE ...', PAL.blue); }
       if (!B.beamer && Math.random() < B.backstabChance) {       // „hinter deinem Rücken“ – ohne Vorwarnung
         const c = G.kids.filter(k => k.state === 'work' && k.calm <= 0);
