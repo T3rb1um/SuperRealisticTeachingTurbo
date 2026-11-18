@@ -118,20 +118,18 @@ const CONFIG = {
     },
   },
   clip: { carry: [0, 2, 4, 99], slow: 0.9 },
-  // Praxishalle
+  // Praxishalle: Wartungsauftrag Radlader
   hall: {
-    freshTime: 40,             // so lange bleibt eine Station spannend (dann Rotation ansagen)
-    seat: 1.0,                 // Lernen an der Station
-    boredSpawn: 0.8,           // bis zu +80 % Unruhe an langweiligen Stationen
-    check: { firstAt: 10, every: 11, patience: 22, hold: 1.2, bonus: 4 },        // Abnahme
-    mat:   { firstAt: 14, every: 20, patience: 18, carry: 3 },                    // Material vom Werkzeugwagen
-    psa:   { firstAt: 20, every: 30, patience: 12, orderHit: 4 },                 // Schutzbrille vergessen
-    leak:  { chance: 0.6, from: 20, to: 60, slipAfter: 18, slipEvery: 14, orderHit: 8, clean: 1.4 },   // Ölfleck
-    motor: { chance: 0.6, from: 15, to: 70, drain: 0.6, spawn: 1.4 },            // Motor läuft laut
-    climb: { chance: 0.5, from: 25, to: 75, warn: 2.5, drain: 1.2, orderHit: 5 }, // Radlader klettern
+    seat: 0.7,                 // Lernen an der Station
+    order: { matAt: 40, prepCap: 30, presenceBoost: 1.3, checkBonus: 4, bonus: 12, taler: 5 },   // Pakete, Meilensteine, Auftragsbonus
+    check: { hold: 1.2, patience: 22 },                                           // Abnahme
+    mat:   { patience: 20, carry: 3 },                                            // Teile vom Werkzeugwagen
+    leak:  { chance: 0.5, from: 20, to: 60, slipAfter: 18, slipEvery: 14, orderHit: 8, clean: 1.4 },   // Ölfleck
+    motor: { chance: 0.5, from: 15, to: 70, drain: 0.6, spawn: 1.3 },            // Motor läuft laut
+    climb: { chance: 0.4, from: 25, to: 75, warn: 2.5, drain: 1.2, orderHit: 5 }, // Radlader klettern
     wc:    { awayMin: 8, awayMax: 12 },
-    sheetMult: 2.5,
   },
+
   // SPS-Labor
   lab: {
     pc:   { firstAt: 14, every: 26, jitter: 0.4, patience: 14, hold: 1.5 },        // PC hängt → am Platz E halten
@@ -727,7 +725,6 @@ function applyModifiers() {
   if (isHall()) {                                             // Praxishalle: mobile Tafel = Rotation ansagen
     CONFIG.board.beamer = true;
     CONFIG.forms.forEach(f => Object.assign(f, { write: 1.0 * Math.pow(0.8, upLevel('chalk')), learn: 1, noise: 1, sheets: false, groupSheets: 0, label: 'Stationsarbeit' }));
-    CONFIG.copier.requestInterval *= CONFIG.hall.sheetMult; CONFIG.copier.firstRequestAt *= 2;
   }
   if (isLab()) {                                              // SPS-Labor: Beamer statt Tafel, Aufgaben statt Arbeitsformen
     CONFIG.board.beamer = true;
@@ -1366,7 +1363,7 @@ function update(dt) {
   if (G.printerOn) { G.copier.shake = Math.max(G.copier.shake, 0.05); if (Math.random() < dt * 0.8) sfx.print(); }
 
   /* --- Tafel schreiben (E halten) --- */
-  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isHall() ? G.supply < 95 && !G.rotating : isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
+  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isHall() ? false : isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
   if (hold && canWrite) {
     if (!G.writing && G.writeProg === 0) {
       G.nextSubject = pick(teacherSubjects().filter(s => s !== G.subject));
@@ -1452,7 +1449,7 @@ function update(dt) {
   const present = G.kids.filter(isSeated).length || 1;
   const working = G.kids.filter(k => k.state === 'work' || k.state === 'fidget').length;
   if (G.exam) { /* Klassenarbeit: keine Tafel */ }
-  else if (isHall()) G.supply = Math.max(0, G.supply - dt * 100 / CONFIG.hall.freshTime);   // Stationen werden langweilig
+  else if (isHall()) G.supply = 100;                          // Halle: Arbeit kommt aus dem Auftrag, nicht von der Tafel
   else if (isLab()) { G.supply = 100; G.labPause = Math.max(0, (G.labPause || 0) - dt); }   // Labor: kein Aufgabenvorrat
   else if (G.supply > 0) {
     G.supply -= working / present * 100 / form().duration * dt;
@@ -1599,7 +1596,7 @@ function update(dt) {
     }
     G.cheatT = W.cheatEvery * (1 + rand(-0.3, 0.3)) / (1 + W.difficultyPerDay * ((RUN.week - 1) * W.days.length + RUN.day));
   }
-  if (!G.exam) G.sheetT -= dt;
+  if (!G.exam && !isHall()) G.sheetT -= dt;                    // Halle: keine Blatt-Wünsche
   if (G.sheetT <= 0) {
     if (G.t >= CC.firstRequestAt && openProblems() < limit) {
       const c = G.kids.filter(k => (k.state === 'work' || k.state === 'done') && k.calm <= 0);
@@ -1642,7 +1639,7 @@ function update(dt) {
 
   /* --- Lernfortschritt --- */
   const L = CONFIG.learning;
-  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat * (0.15 + 0.85 * G.supply / 100) : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
+  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
   const learners = G.laughT > 0 || G.exam ? [] : G.kids.filter(k => k.state === 'work' || k.state === 'fidget');
   for (const k of learners) k.learn = (k.learn || 0) + L.perKid * form().learn * quality * pairMult(k) * dt;      // eigener Lernstand
   if (G.exam) for (const k of G.kids) {                                                          // Klassenarbeit: Konzentration
@@ -1986,7 +1983,7 @@ function rulesHtml() {
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.<br>
        <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
        <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).<br>
-       <b style="color:#f2c14e">Praxishalle</b>: 6 Gruppen an Stationen. Stationen werden langweilig (Balken auf der mobilen Tafel) → an der Tafel E halten = Rotation ansagen. <b style="color:#9fd39a">OK?</b> = Abnahme: beim Azubi E halten (Lernbonus). Werkzeug-Symbol = Teil vom Werkzeugwagen holen und bringen. Brille = Schutzbrille vergessen, E. Ölfleck: Bindemittel im Hochregal holen, dann E halten. LAUT: Motor abstellen. Radlader-Kletterer: E. Nur ein WC (im Büro).</p>
+       <b style="color:#f2c14e">Praxishalle</b>: Wartungsauftrag Radlader mit 4 Paketen (Balken an den Stationen, Checkliste auf der mobilen Tafel). Bei 40 % braucht ein Paket ein Teil vom Werkzeugwagen, bei 100 % deine Abnahme (beim Azubi E halten). Wo du stehst, wird 30 % schneller gearbeitet. Ölfleck: Bindemittel im Hochregal holen, dann E halten · LAUT: Motor abstellen · Radlader-Kletterer: E · nur ein WC.</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>`;
 }
@@ -2081,7 +2078,7 @@ const VIEW = { x0: OX - 16, x1: OX + RW * T + 16, y0: OY - WALL_H - 8, y1: SH };
 function updateCamera(k) {
   if (!isTouchDevice || !G) return;
   const s = cam.s, hudH = 22;
-  const hc = typeof hallCam !== 'undefined' && isHall() ? hallCam : { x: 0, y: 0 };   // Halle: Bild ist schon mitgeschwenkt
+  const hc = { x: 0, y: 0 };
   const vw = (VIEW.x1 - VIEW.x0) * s, vh = (VIEW.y1 - VIEW.y0) * s;
   const tx = vw <= innerWidth ? (innerWidth - vw) / 2 - VIEW.x0 * s
     : clamp(innerWidth / 2 - (sx(G.p.x) - hc.x) * s, innerWidth - VIEW.x1 * s, -VIEW.x0 * s);
@@ -2095,20 +2092,20 @@ function fit() {
   if (isTouchDevice) {                                          // Handy: Klassenraum füllt den ganzen Bildschirm
     const fw = innerWidth / (VIEW.x1 - VIEW.x0), fh = (innerHeight - 22) / (VIEW.y1 - VIEW.y0);
     cam.s = cam.mode === 'zoom' ? Math.max(fw, fh) : Math.min(fw, fh);
-    cv.style.width = SW * cam.s + 'px'; cv.style.height = SH * cam.s + 'px';
+    cv.style.width = cv.width * cam.s + 'px'; cv.style.height = cv.height * cam.s + 'px';
     updateCamera(1);
     return;
   }
   const hudH = $('hud').offsetHeight;
   const availW = innerWidth - 8;
   $('wrap').style.left = innerWidth / 2 + 'px';
-  const raw = Math.min(availW / SW, (innerHeight - hudH) / SH);
+  const raw = Math.min(availW / cv.width, (innerHeight - hudH) / cv.height);
   const full = !!(document.fullscreenElement || document.webkitFullscreenElement);
   const s = full ? raw : raw >= 2 ? Math.floor(raw) : Math.max(0.5, raw);   // im Vollbild ganz ausfüllen
-  cv.style.width = SW * s + 'px'; cv.style.height = SH * s + 'px';
-  $('hud').style.width = SW * s + 'px';
+  cv.style.width = cv.width * s + 'px'; cv.style.height = cv.height * s + 'px';
+  $('hud').style.width = cv.width * s + 'px';
   $('overlay').style.top = hudH + 'px';
-  $('hud').style.fontSize = Math.round(clamp(SW * s / 80, 9, 16)) + 'px';
+  $('hud').style.fontSize = Math.round(clamp(cv.width * s / 80, 9, 16)) + 'px';
 }
 window.addEventListener('resize', fit);
 

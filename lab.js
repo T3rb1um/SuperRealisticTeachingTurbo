@@ -92,6 +92,13 @@ function enterRoom(id) {
   for (const k of Object.keys(DOOR)) delete DOOR[k]; Object.assign(DOOR, d.door);
   Object.assign(COPY_SPOT, d.copySpot);
   if (changed || !navGrid) buildNav();
+  // Spielbild an die Raumgröße anpassen (die ganze Halle ist auf einmal sichtbar, kein Scrollen)
+  const big = id === 'hall', W = big ? OX * 2 + RW * T : SW, H = big ? OY + RH * T + 40 : SH;
+  if (cv.width !== W || cv.height !== H) {
+    cv.width = W; cv.height = H; ctx.imageSmoothingEnabled = false;
+    VIEW.x1 = OX + RW * T + 16; VIEW.y1 = H;   // Handy: sichtbarer Bereich
+    if (typeof fit === 'function') fit();
+  }
 }
 function pickRoom(i) {
   roomPick = (i + ROOM_PICKS.length) % ROOM_PICKS.length;

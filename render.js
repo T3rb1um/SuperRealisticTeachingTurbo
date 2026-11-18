@@ -1132,7 +1132,7 @@ function drawPresence() {
 
 function drawFormPicker() {
   const X = sx(G.p.x), Y = sy(G.p.y) + 10;
-  if (typeof isHall === 'function' && isHall()) { ptext(G.supply < 95 ? 'E HALTEN: ROTATION ANSAGEN' : 'STATIONEN NOCH FRISCH', X, Y, G.supply < 95 ? PAL.yellow : PAL.grey); return; }
+  if (typeof isHall === 'function' && isHall()) return;
   if (G.kids.some(k => k.state === 'question')) { ptext('FRAGE: E HALTEN', X, Y, '#9fd39a'); return; }
   const items = CONFIG.forms.map((f, i) => `${i + 1} ${f.name}`);
   const widths = items.map(s => s.length * 8 + 6);

@@ -1044,15 +1044,29 @@ function drawHallPrinter() {                   // Drucker am Büro, mit Fach-Anz
   R(b.X + 40, b.Y + 4, 8, 6, C.jam ? (blink(5) ? PAL.red : '#7a2a2a') : warming ? PAL.orange : C.cool > 0 ? '#7fb3e0' : C.printing ? '#7cc47a' : '#4f8fc9');
   if ((C.tray > 0 && blink(3)) || (C.jam && blink(5))) { ctx.fillStyle = C.jam ? 'rgba(232,83,74,.4)' : 'rgba(247,209,84,.4)'; ctx.fillRect(b.X - 3, b.Y - 3, 58, 40); }
 }
-function drawHallBoard() {                     // mobile Tafel: Stationsplan + Frische
+function drawHallBoard() {                     // mobile Tafel: Auftrag mit Checkliste
   drawMobileBoard(10.4, 5.0);
   const X = sx(10.4), Y = sy(5.0) - 64;
   R(X, Y, 80, 48, '#f8f8f4');
   if (G.exam) { ltext(examName().toUpperCase().replace('Ü', 'UE'), X + 4, Y + 4, '#c0503a', 1); ltext('RUHE BITTE', X + 4, Y + 16, '#26232e', 1); return; }
-  ltext('ROTATION ' + ((G.rot || 0) + 1), X + 4, Y + 3, '#2f6db5', 1);
-  for (let g = 0; g < 6; g++) { const st = (g + (G.rot || 0)) % 6; ltext((g + 1) + ' ' + HALL_ST[st].name.replace('HYDRAULIK', 'HYDR.').replace('ELEKTRO', 'ELEK.'), X + 4 + (g % 2) * 40, Y + 12 + Math.floor(g / 2) * 8, '#26232e', 1); }
-  const f = G.supply / 100;
-  R(X + 4, Y + 40, 72, 5, '#d6d9dc'); R(X + 4, Y + 40, Math.round(72 * f), 5, f < 0.25 ? PAL.red : f < 0.5 ? PAL.orange : '#7cc47a');
+  if (!G.pkg) return;
+  ltext('AUFTRAG ' + G.order_n, X + 4, Y + 3, '#2f6db5', 1);
+  HALL_PKG.forEach((D, i) => {
+    const P = G.pkg[i], yy = Y + 12 + i * 8;
+    R(X + 4, yy, 5, 5, P.done ? '#7cc47a' : '#d6d9dc'); if (P.done) { px(X + 5, yy + 2, COL.white); px(X + 6, yy + 3, COL.white); px(X + 7, yy + 1, COL.white); }
+    ltext(D.name, X + 12, yy, '#26232e', 1);
+    R(X + 56, yy + 1, 20, 3, '#d6d9dc'); R(X + 56, yy + 1, Math.round(20 * P.p / 100), 3, P.need ? PAL.orange : '#2f6db5');
+  });
+}
+function drawHallPkgBars() {                   // Fortschritt je Paket direkt an den Stationen
+  if (!G.pkg || G.exam) return;
+  HALL_PKG.forEach((D, i) => {
+    const P = G.pkg[i], X = sx(D.bar[0]), Y = sy(D.bar[1]);
+    const near = teacherNear(i), col = P.done ? '#7cc47a' : P.need ? PAL.orange : near ? '#9fd3f0' : '#5ca7e8';
+    const w = 96; rr(X - w / 2 - 2, Y - 6, w + 4, 12, PAL.dark, 2); R(X - w / 2, Y - 4, Math.round(w * P.p / 100), 8, col);
+    if (D.id === 'rad' && !P.done && P.p >= CONFIG.hall.order.prepCap - 0.1 && !G.pkg.slice(0, 3).every(q => q.done)) R(X - w / 2 + Math.round(w * 0.3), Y - 5, 1, 10, PAL.red);
+    ltext(P.done ? D.name + ' OK' : P.need === 'mat' ? D.part + '?' : P.need === 'check' ? 'ABNAHME!' : D.name + (near ? ' X1.3' : ''), X - w / 2 + 2, Y - 3, COL.white, 1);
+  });
 }
 function drawHallPult() {                      // Stehpult mit Ablage
   const b = box(13.4, 4.55, 0.9, 0.5, 30, '#9aa2ab', '#6b717c', '#555c68');
@@ -1095,6 +1109,7 @@ function renderHallWorld() {
   if (G.npc) list.push({ y: G.npc.y, f: drawNpc });
   list.sort((a, b) => a.y - b.y).forEach(o => o.f());
   drawHoseRail();
+  drawHallPkgBars();
   if (G.motorLoud) {                             // Lärm-Wellen am Motor
     const b = hallMotorBlock(), X = sx((b.x0 + b.x1) / 2), Y = sy(b.y0) - 60;
     for (let i = 0; i < 3; i++) { const ph = (clockT * 1.5 + i / 3) % 1; ctx.strokeStyle = `rgba(242,154,78,${(1 - ph).toFixed(2)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X, Y, 10 + ph * 40, -2.6, -0.5); ctx.stroke(); }
@@ -1124,18 +1139,9 @@ function drawHallOverlay() {
   if (G.motorLoud) { const b = hallMotorBlock(); bubble(sx((b.x0 + b.x1) / 2), sy(b.y0) - 84, PAL.orange, 1, 'LAUT', COL.white, 16); }
   if (G.binder) { const X = sx(G.p.x) + 14, Y = sy(G.p.y) - 34; R(X, Y, 10, 12, '#d8c8a0'); R(X, Y, 10, 3, '#b08a5a'); }
   if (G.mats) for (let i = 0; i < G.mats; i++) { const X = sx(G.p.x) - 20 - i * 5, Y = sy(G.p.y) - 26; R(X, Y, 4, 4, '#9aa2ab'); }
-  if (G.supply < 25 && !G.exam) bubble(sx(11.6), sy(5.0) - 92 + (blink(3) ? -2 : 0), PAL.orange, G.supply / 25, 'ROT', COL.white, 14);
 }
-function renderHall() {
-  const real = ctx, cv2 = hallCanvas();
-  ctx = cv2.getContext('2d');
+function renderHall() {                        // ganze Halle direkt ins (größere) Spielbild
+  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, cv.width, cv.height);
   renderHallWorld();
   if (state !== 'title') renderOverlay();
-  ctx = real;
-  const W = cv2.width, H = cv2.height;
-  const tx = clamp(sx(G.p.x) - SW / 2, 0, W - SW), ty = clamp(sy(G.p.y) - 40 - SH / 2, 0, H - SH);
-  hallCam.x += (tx - hallCam.x) * 0.12; hallCam.y += (ty - hallCam.y) * 0.12;
-  if (Math.abs(tx - hallCam.x) > 300) { hallCam.x = tx; hallCam.y = ty; }
-  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, SW, SH);
-  ctx.drawImage(cv2, -Math.round(hallCam.x), -Math.round(hallCam.y));
 }
