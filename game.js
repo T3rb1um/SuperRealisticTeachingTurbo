@@ -212,7 +212,16 @@ const upgradeOk = u => !u.room || u.room === ROOM_ID;
 /* Raum-Ausbau: 3 Stufen je Raum, im Shop zu kaufen, im Raum sichtbar. Stufe 2 und 3: 1 aus 3 Game-Changern. */
 const BUILD = {
   class: [{ cost: 60, opts: ['cozy'] }, { cost: 90, opts: ['tables', 'seating', 'light'] }, { cost: 120, opts: ['beamer', 'netprint', 'gong'] }],
-  lab:   [{ cost: 60, opts: ['labtidy'] }, { cost: 90, opts: ['plant2', 'robot', 'light'] }, { cost: 120, opts: ['sim', 'checker', 'rules'] }],
+  lab:   [{ cost: 60, opts: ['labtidy'] }, { cost: 90, opts: ['robot', 'light', 'phonebox'] }, { cost: 120, opts: ['sim', 'checker', 'rules'] }],
+};
+/* Raum-Ereignisse: am Ende eines bestimmten Tages in diesem Raum kommt jemand und erweitert den Raum – automatisch, ohne Kauf. */
+const ROOM_EVENTS = {
+  class: [{ day: 2, id: 'light',     who: 'Der Hausmeister', title: 'Eine Lärmampel für die Klasse',
+            text: 'Kurz vor Feierabend schraubt der Hausmeister eine Lärmampel an die Wand. Ab morgen zeigt sie 3 s vorher, wer als Nächstes unruhig wird.' }],
+  lab:   [{ day: 2, id: 'plant2',    who: 'Die Haustechnik', title: 'Die kleine Anlage läuft wieder',
+            text: 'Nach dem Unterricht repariert die Haustechnik das kleine Förderband. Ab morgen ist es eine zweite Teststation: Wenn die große Anlage belegt ist, testen Paare dort (ohne deine Hilfe).' }],
+  hall:  [{ day: 2, id: 'binderbox', who: 'Der Ausbilder', title: 'Bindemittel an der Hydraulik',
+            text: 'Der Ausbilder stellt eine Kiste Ölbindemittel direkt neben die Hydraulikwände. Bei einem Ölfleck musst du nicht mehr bis zum Hochregal laufen.' }],
 };
 const buildLevel = () => (RUN && RUN.build && RUN.build[ROOM_ID]) || 0;
 
@@ -236,6 +245,7 @@ const CHANGERS = [
   { id: 'sim',     room: 'lab', name: 'Simulation am PC',   desc: 'Paare testen erst virtuell: Tests schlagen nur halb so oft fehl.', catch: 'Tests bringen 20 % weniger Bonus.' },
   { id: 'checker', room: 'lab', name: 'Azubi-Prüfer',       desc: 'Ein Azubi steht an der Anlage und hilft bei jedem Test (1,6× schneller, seltener Fehler).', catch: 'Er lernt dabei selbst nichts.' },
   { id: 'cozy',    room: 'class', build: true, name: 'Gemütlich einrichten', desc: 'Pflanzen, Lichterkette, Leselampe: Ordnung erholt sich 50 % schneller.', catch: '–' },
+  { id: 'binderbox', room: 'hall', build: true, name: 'Bindemittel an der Hydraulik', desc: 'Bindemittel steht direkt neben den Hydraulikwänden.', catch: '–' },
   { id: 'labtidy', room: 'lab', build: true, name: 'Neue Monitore & Kabelordnung', desc: 'PCs hängen 30 % seltener.', catch: '–' },
   { id: 'helper2', name: 'Klassensprecher+',      desc: 'Der Klassensprecher holt Blätter auch aus dem Kopierer.', req: 'helper',        catch: 'Er ist öfter unterwegs und lernt dann nichts.' },
 ];
@@ -396,6 +406,50 @@ function labMusicStep(st, t, sx16) {
   const m = M.mel[st]; if (m) mnote(m, t, sx16 * 3.5, 'triangle', 0.036, dest);                                   // Melodie
   const b = M.beeps[st]; if (b) { mnote(b, t, 0.06, 'sine', 0.025, dest); mnote(b, t + 0.09, 0.06, 'sine', 0.02, dest); }   // Piep-Piep
 }
+// Praxishalle: Werkstatt-Groove, Amboss-Schläge, ab und zu ein Motor, alles etwas hallig
+const HALL_MUSIC = {
+  bpm: 92,
+  chords: [[52, 59, 64], [48, 55, 60], [50, 57, 62], [47, 54, 59]],                  // Em – C – D – Bm
+  bass: [40, 36, 38, 35],
+  mel: [0, 0, 0, 0, 71, 0, 0, 74, 0, 0, 76, 0, 0, 0, 74, 0, 71, 0, 0, 0, 0, 0, 0, 0, 67, 0, 69, 0, 71, 0, 0, 0,
+        0, 0, 0, 0, 72, 0, 0, 71, 0, 0, 67, 0, 0, 0, 64, 0, 67, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 74, 0, 0, 76, 0, 0, 78, 0, 0, 0, 76, 0, 74, 0, 0, 0, 0, 0, 0, 0, 69, 0, 71, 0, 74, 0, 0, 0,
+        0, 0, 0, 0, 71, 0, 0, 69, 0, 0, 66, 0, 0, 0, 67, 0, 71, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+};
+function hallBus() {                                   // trockener Weg + Hall (Faltung mit erzeugtem Nachhall)
+  if (music.hall) return music.hall;
+  const dry = actx.createGain(), send = actx.createGain(), conv = actx.createConvolver();
+  const len = actx.sampleRate * 2.2, ir = actx.createBuffer(2, len, actx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  conv.buffer = ir; send.gain.value = 0.35;
+  dry.connect(music.gain); dry.connect(send); send.connect(conv); conv.connect(music.gain);
+  music.hall = dry; return dry;
+}
+function manvil(t, vol, dest) {                        // metallischer Schlag (Amboss/Schraubenschlüssel)
+  [523, 1244, 1856].forEach((f, i) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(vol / (i + 1), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35 - i * 0.08); o.connect(g).connect(dest); o.start(t); o.stop(t + 0.4); });
+  mnoise(t, 0.06, vol * 0.8, 2500, dest);
+}
+function mmotor(t, dur, vol, dest) {                   // Motor: tiefer Sägezahn, dreht hoch und wieder runter
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = 'sawtooth'; o2.type = 'square';
+  for (const [osc, m] of [[o, 1], [o2, 0.5]]) { osc.frequency.setValueAtTime(38 * m, t); osc.frequency.linearRampToValueAtTime(72 * m, t + dur * 0.4); osc.frequency.linearRampToValueAtTime(44 * m, t + dur); }
+  f.type = 'lowpass'; f.frequency.setValueAtTime(220, t); f.frequency.linearRampToValueAtTime(520, t + dur * 0.4); f.frequency.linearRampToValueAtTime(240, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.4); g.gain.setValueAtTime(vol, t + dur - 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(f); o2.connect(f); f.connect(g).connect(dest); o.start(t); o2.start(t); o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+}
+function hallMusicStep(st, t, sx16) {
+  const M = HALL_MUSIC, ci = Math.floor(st / 32), ch = M.chords[ci], dest = hallBus();
+  const sw = st % 2 ? sx16 * 0.33 : 0;                                              // Shuffle
+  if (st % 8 === 0) mkick(t, 0.065, dest);
+  if (st % 8 === 4) manvil(t, 0.03, dest);                                          // Schlag auf 2 und 4
+  if (st % 2 === 0) mnoise(t + sw, 0.04, 0.018, 8000, dest);                        // Hi-Hat
+  if (st % 8 === 0 || st % 8 === 3 || st % 8 === 6) mbassPulse(M.bass[ci], t, sx16 * 2, 0.045, 700, dest);   // gezupfter Bass
+  if (st % 4 === 2) ch.forEach((m, i) => mnote(m + 12, t + sw + i * 0.012, sx16 * 1.6, 'triangle', 0.012, dest));   // Akkord-Anschlag
+  const m = M.mel[st]; if (m) mnote(m, t, sx16 * 2.5, 'square', 0.014, dest);
+  if (st === 16 || st === 80) mmotor(t, 3.2, 0.035, dest);                          // Motor im Hintergrund
+  if (st === 118) for (let i = 0; i < 8; i++) mnoise(t + i * 0.045, 0.02, 0.03, 3000, dest);   // Ratsche
+}
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 function mnote(m, t, dur, type, vol, dest) {
   const o = actx.createOscillator(), g = actx.createGain();
@@ -405,12 +459,13 @@ function mnote(m, t, dur, type, vol, dest) {
 }
 function musicTick() {
   if (!actx || !music.on) return;
-  const lab = typeof isLab === 'function' && isLab() && state !== 'title';
-  const sixteenth = 60 / (lab ? LAB_MUSIC.bpm : MUSIC.bpm) / 4;
-  if (music.lab !== lab) { music.lab = lab; music.step = 0; }                        // Raumwechsel → Stück von vorn
+  const track = state === 'title' ? 'class' : typeof isLab === 'function' && isLab() ? 'lab' : typeof isHall === 'function' && isHall() ? 'hall' : 'class';
+  const sixteenth = 60 / (track === 'lab' ? LAB_MUSIC.bpm : track === 'hall' ? HALL_MUSIC.bpm : MUSIC.bpm) / 4;
+  if (music.track !== track) { music.track = track; music.step = 0; }                // Raumwechsel → Stück von vorn
   if (music.next < actx.currentTime) music.next = actx.currentTime + 0.05;
   while (music.next < actx.currentTime + 0.25) {
-    if (lab) { labMusicStep(music.step % 128, music.next, sixteenth); music.next += sixteenth; music.step++; continue; }
+    if (track === 'lab') { labMusicStep(music.step % 128, music.next, sixteenth); music.next += sixteenth; music.step++; continue; }
+    if (track === 'hall') { hallMusicStep(music.step % 128, music.next, sixteenth); music.next += sixteenth; music.step++; continue; }
     const st = music.step % 128, ci = Math.floor(st / 32), t = music.next, ch = MUSIC.chords[ci];
     if (st % 16 === 0) ch.forEach((m, i) => mnote(m, t + i * 0.015, sixteenth * 15, 'triangle', 0.022, music.gain));   // Pad
     if (st % 8 === 0) mnote(MUSIC.bass[ci], t, sixteenth * 6, 'sine', 0.09, music.gain);                              // Bass
@@ -556,6 +611,9 @@ function setupTouch() {
     if (sv && state === 'end') { saveGame(+sv.dataset.save); return; }
     const ld = e.target.closest('[data-load]');
     if (ld && state === 'title') { loadGame(+ld.dataset.load); return; }
+    const tt = e.target.closest('[data-title]');
+    if (tt && state === 'title') { titleSub(tt.dataset.title); return; }
+    if (state === 'titlesub') { const ld2 = e.target.closest('[data-load]'); if (ld2) { loadGame(+ld2.dataset.load); return; } if (e.target.closest('.go')) titleScreen(); return; }
     const rb = e.target.closest('[data-room]');
     if (rb && state === 'title') { pickRoom(+rb.dataset.room); return; }
     const tb = e.target.closest('[data-teacher]');
@@ -564,7 +622,7 @@ function setupTouch() {
     if (pr && state === 'prep') { togglePrep(+pr.dataset.prep); return; }
     const pk = e.target.closest('[data-pick]');
     if (pk && state === 'choice') { pickChanger(+pk.dataset.pick); return; }
-    if (['title', 'prep', 'end', 'shop', 'exam'].includes(state)) { if (e.target.closest('.go')) advance(); }   // sonst: Text scrollen
+    if (['title', 'prep', 'end', 'shop', 'exam', 'roomev'].includes(state)) { if (e.target.closest('.go')) advance(); }   // sonst: Text scrollen
     else if (state === 'rules') { if (e.target.closest('.go')) openMenu(); }
     else if (state === 'pause') { const mb = e.target.closest('[data-menu]'); if (mb) menuAction(mb.dataset.menu); }
   });
@@ -594,17 +652,17 @@ try { best = +(localStorage.getItem('kig_best_weeks') || 0); } catch (e) { best 
 
 /* Lehrkräfte zur Auswahl (Index in TEACHERS, render.js) mit kleiner Eigenschaft (ca. 10–15 %) */
 const TEACHER_PICK = [
-  { idx: 2, trait: 'Organisationstalent', desc: 'Teilt Blätter aus dem Stapel 40 % schneller aus, der Kopierer wärmt 20 % schneller auf.',
-    apply: C => { C.give.stackMin *= 0.6; C.give.stackMax *= 0.6; C.copier.warmup *= 0.8; },
+  { idx: 2, trait: 'Organisationstalent', desc: 'Kopierer wärmt 30 % schneller auf, kühlt schneller ab, kaum Papierstau. Austeilen 40 % schneller. Trägt in der Halle 4 Teile.',
+    apply: C => { C.give.stackMin *= 0.6; C.give.stackMax *= 0.6; C.copier.warmup *= 0.7; C.copier.cooldown *= 0.8; C.copier.jamSkip = 0.6; C.hall.mat.carry = 4; },
     routine: 'sheets', pool: ['warm', 'board', 'calm', 'sleep'] },
-  { idx: 1, trait: 'Ruhepol', desc: 'Präsenz-Kreis 15 % größer, läuft dafür 10 % langsamer.',
-    apply: C => { C.presence.radius *= 1.15; C.player.speed *= 0.9; },
+  { idx: 1, trait: 'Ruhepol', desc: 'Präsenz-Kreis 15 % größer, läuft dafür 5 % langsamer.',
+    apply: C => { C.presence.radius *= 1.15; C.player.speed *= 0.95; },
     routine: 'calm', pool: ['talk', 'board', 'faq', 'sheets'] },
-  { idx: 3, trait: 'Flink', desc: 'Läuft 12 % schneller.',
-    apply: C => { C.player.speed *= 1.12; },
+  { idx: 3, trait: 'Flink', desc: 'Läuft 8 % schneller.',
+    apply: C => { C.player.speed *= 1.08; },
     routine: 'sleep', pool: ['board', 'sheets', 'warm', 'clear'] },
-  { idx: 4, trait: 'Erfahren', desc: 'Beruhigt zappelige Azubis doppelt so schnell und erklärt Fragen 30 % schneller.',
-    apply: C => { C.kids.presenceCalm *= 0.5; C.events.question.explain *= 0.7; },
+  { idx: 4, trait: 'Erfahren', desc: 'Ihre Nähe beruhigt auch trödelnde Azubis. Zappelige doppelt so schnell ruhig, Fragen 30 % schneller erklärt.',
+    apply: C => { C.kids.presenceCalm *= 0.5; C.events.question.explain *= 0.7; C.kids.calmIdle = true; },
     routine: 'faq', pool: ['clear', 'talk', 'calm', 'sheets'] },
 ];
 let teacherPick = 0;
@@ -811,7 +869,7 @@ function newLesson() {
     drainNow: { stoerer: 0, tafel: 0, kopierer: 0, tuer: 0 },
     gongLeft: has('gong') ? 1 : 0, gongFx: 0,
     exam: !!RUN && RUN.day === CONFIG.week.days.length - 1 && RUN.lesson === CONFIG.week.lessonsPerDay - 1, cheatT: 6,
-    jamPlan: !!RUN && RUN.jamLesson === RUN.lesson && Math.random() >= 0.3 * upLevel('copier'), forecastKid: null, beamerDelay: 0,
+    jamPlan: !!RUN && RUN.jamLesson === RUN.lesson && Math.random() >= 0.3 * upLevel('copier') + (CONFIG.copier.jamSkip || 0), forecastKid: null, beamerDelay: 0,
   };
   // Vorbereitung des Tages
   if (prepOn('sheets')) G.stash = Math.min(2, CONFIG.deskStashMax);
@@ -1513,6 +1571,11 @@ function update(dt) {
         }
         break;
       case 'idle':
+        if (K.calmIdle && inPresence(k)) {                          // Frau Adeyemi: Nähe beruhigt auch Trödler (etwas langsamer)
+          if ((k.pres += dt) >= K.presenceCalm * 2.5) { backToWork(k, 1.5); puff(sx(k.x), sy(k.y) - 44, PAL.white, 3); }
+          break;
+        }
+        k.pres = 0;
         if ((k.t += dt * esc) >= K.idleToLoud) { k.state = 'loud'; k.spreadT = 0; sfx.loud(); }
         break;
       case 'loud':
@@ -1706,7 +1769,9 @@ function endLesson() {
   sfx.bell();
 
   const lastOfDay = RUN.lesson >= W.lessonsPerDay - 1, lastOfWeek = lastOfDay && RUN.day >= W.days.length - 1;
-  RUN.queue = lastOfWeek ? ['exam'] : lastOfDay ? ['shop', ...(RUN.day === W.changerAfterDay ? ['choice'] : []), 'nextDay'] : ['lesson'];
+  if (lastOfDay) { RUN.roomDays = RUN.roomDays || {}; RUN.roomDays[ROOM_ID] = (RUN.roomDays[ROOM_ID] || 0) + 1; }
+  const rev = lastOfDay ? roomEventDue() : null;
+  RUN.queue = lastOfWeek ? [...(rev ? ['roomev'] : []), 'exam'] : lastOfDay ? [...(rev ? ['roomev'] : []), 'shop', ...(RUN.day === W.changerAfterDay ? ['choice'] : []), 'nextDay'] : ['lesson'];
   const examNext = RUN.queue[0] === 'lesson' && RUN.day === W.days.length - 1 && RUN.lesson + 1 === W.lessonsPerDay - 1;
   const goText = examNext ? `Weiter: ${examName()}!` : { lesson: 'Weiter: nächste Stunde', shop: 'Weiter: Feierabend', exam: 'Weiter: Notenspiegel' }[RUN.queue[0]];
 
@@ -1778,6 +1843,19 @@ function openShop() {
     <h3 class="shophead">${RD().name}</h3><div class="shop">${roomHtml}</div>
     ${buildHtml}
     ${owned.length ? `<p class="test">Schon da: ${owned.join(' · ')}</p>` : ''}
+    <p class="go">Weiter (Enter)</p>`);
+}
+function roomEventDue() {
+  const days = (RUN.roomDays && RUN.roomDays[ROOM_ID]) || 0;
+  return (ROOM_EVENTS[ROOM_ID] || []).find(ev => days >= ev.day && !(RUN.roomEv && RUN.roomEv[ev.id])) || null;
+}
+function showRoomEvent() {
+  const ev = roomEventDue(); if (!ev) { advance(); return; }
+  state = 'roomev'; RUN.roomEv = RUN.roomEv || {}; RUN.roomEv[ev.id] = true; RUN.ch[ev.id] = true;
+  sfx.door(); setTimeout(() => sfx.done(), 400);
+  showCard(`<h2>Nach dem Unterricht …</h2>
+    <p style="color:var(--gold)"><b>${ev.who}</b> kommt noch vorbei.</p>
+    <div class="weekintro"><b>${ev.title}</b><br>${ev.text}</div>
     <p class="go">Weiter (Enter)</p>`);
 }
 function buyBuild(id) {
@@ -1906,6 +1984,7 @@ function advance() {
   switch (next) {
     case 'lesson': RUN.lesson++; startLesson(); break;
     case 'shop': openShop(); break;
+    case 'roomev': showRoomEvent(); break;
     case 'choice': openChoice(); break;
     case 'exam': showExam(); break;
     case 'nextDay': RUN.day++; RUN.lesson = 0; newDay(); openPrep(); break;
@@ -2003,18 +2082,29 @@ function rulesHtml() {
 }
 function titleScreen() {
   state = 'title';
+  const hasSave = !!saveSlotsHtml('load');
   showCard(`
     <h1>Super Real Teaching Turbo</h1>
-    <p>Berufsschule · Klasse Technik 1 · Prototyp</p>
-    <p style="color:var(--ink);margin-top:8px">Wer unterrichtet? <span class="touch-hide" style="color:var(--muted)">(← → oder 1–4)</span></p>
+    <p>Berufsschule · Klasse Technik 1</p>
     <div class="teachers">${TEACHER_PICK.map((tp, i) => `<button class="tpick${i === teacherPick ? ' sel' : ''}" data-teacher="${i}">
       <img src="${teacherPortrait(tp.idx)}" alt=""><b>${TEACHERS[tp.idx].name}</b><span class="tr">${tp.trait}</span><span class="td">${tp.desc}</span></button>`).join('')}</div>
-    <p style="color:var(--ink);margin-top:6px">Raum <span class="touch-hide" style="color:var(--muted)">(R)</span>: ${ROOM_PICKS.map((n, i) => `<button class="rpick${i === roomPick ? ' sel' : ''}" data-room="${i}">${n}</button>`).join(' ')}
-      <span style="color:var(--muted)">${roomPick === 0 ? '· Wochen 1–3 Klassenraum, Woche 4 SPS-Labor' : '· zum Testen: alle Wochen in diesem Raum'}</span></p>
-    ${saveSlotsHtml('load') ? `<p style="color:var(--ink);margin-top:6px">Weiterspielen</p>${saveSlotsHtml('load')}` : ''}
-    <p style="color:var(--ink)">Ein Berufsschulblock: 4 Wochen, 2 Stunden pro Tag, jeden Freitag eine Arbeit, zum Schluss die Zwischenprüfung. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du kleine Upgrades, am Mittwoch und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
+    <p class="roomrow">Raum: ${ROOM_PICKS.map((n, i) => `<button class="rpick${i === roomPick ? ' sel' : ''}" data-room="${i}">${n}</button>`).join(' ')}</p>
+    <div class="titlebtns">
+      <button class="bigbtn go">Neues Spiel</button>
+      ${hasSave ? '<button class="bigbtn" data-title="load">Weiterspielen</button>' : ''}
+      <button class="bigbtn" data-title="rules">Regeln</button>
+    </div>
+    <p class="keys touch-hide">Enter = Neues Spiel · ← → Lehrkraft · R Raum${hasSave ? ' · W Weiterspielen' : ''} · H Regeln</p>`);
+}
+function titleSub(which) {                      // Unterseiten des Startbildschirms
+  state = 'titlesub';
+  if (which === 'load') showCard(`<h2>Weiterspielen</h2>${saveSlotsHtml('load')}<p class="go">Zurück (Esc)</p>`);
+  else showCard(`<h2>So geht's</h2>
+    <p style="color:var(--ink)">Ein Berufsschulblock: 4 Wochen, jeden Freitag eine Arbeit, zum Schluss die Zwischenprüfung. Sorge für möglichst viel <b>Lernfortschritt</b>. Je mehr Ordnung, desto besser lernt die Klasse. Nach jedem Tag kaufst du Upgrades, mittwochs und nach einer guten Klassenarbeit wählst du einen Game-Changer.${best ? ` Rekord: ${best} ${best === 1 ? 'Woche' : 'Wochen'}.` : ''}</p>
     ${rulesHtml()}
-    <p class="go">Neues Spiel (Enter, E oder tippen)</p>`);
+    <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Auswahl · Esc Menü · M Musik · F Vollbild</p>
+    <p class="keys touch-only">Handy quer halten: links ziehen zum Laufen · rechts E (tippen oder halten) und Q</p>
+    <p class="go">Zurück (Esc)</p>`);
 }
 
 function pickTeacher(i) {
@@ -2034,19 +2124,22 @@ window.addEventListener('keydown', e => {
   keys.add(e.code);
   if (e.repeat) return;
   const confirm = e.code === 'Enter' || e.code === 'KeyE' || e.code === 'Space';
+  if (state === 'titlesub') { if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Backspace') titleScreen(); else { const n = +e.key; if (n >= 1 && n <= SAVE_SLOTS && saveSlotsHtml('load')) loadGame(n); } return; }
   if (state === 'title') {
     if (confirm) { advance(); return; }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') { pickTeacher(teacherPick - 1); return; }
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { pickTeacher(teacherPick + 1); return; }
     const n = +e.key; if (n >= 1 && n <= TEACHER_PICK.length) { pickTeacher(n - 1); return; }
     if (e.code === 'KeyR') { pickRoom(roomPick + 1); return; }
+    if (e.code === 'KeyH') { titleSub('rules'); return; }
+    if (e.code === 'KeyW' && saveSlotsHtml('load')) { titleSub('load'); return; }
   }
   if (state === 'prep') {
     if (e.code === 'Enter' || e.code === 'Space') { advance(); return; }
     const n = +e.key; if (n >= 1 && n <= 3) togglePrep(n - 1);
     return;
   }
-  if (['end', 'shop', 'exam'].includes(state) && e.code === 'Enter') { advance(); return; }
+  if (['end', 'shop', 'exam', 'roomev'].includes(state) && e.code === 'Enter') { advance(); return; }
   if (state === 'end') { const n = +e.key; if (n >= 1 && n <= SAVE_SLOTS) { saveGame(n); return; } }
   if (state === 'choice') { const n = +e.key; if (n >= 1 && n <= 3) pickChanger(n - 1); return; }
   if (state === 'shop') {

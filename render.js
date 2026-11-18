@@ -1316,7 +1316,7 @@ function renderOverlay() {
     else if (tg.type === 'robot') { X = sx(G.robot.x); Y = sy(G.robot.y) - 120; }
     else if (tg.type === 'puddle') { X = sx(G.puddle.x); Y = sy(G.puddle.y) - 40; }
     else if (tg.type === 'motor') { const b = hallMotorBlock(); X = sx((b.x0 + b.x1) / 2); Y = sy(b.y0) - 110; }
-    else if (tg.type === 'binder') { X = sx(0.75); Y = sy(3.2) - 100; }
+    else if (tg.type === 'binder') { const box = G.p.x > 8; X = box ? sx(13.45) : sx(0.75); Y = box ? sy(1.0) - 40 : sy(3.2) - 100; }
     else if (tg.type === 'parts') { X = sx(17.4); Y = sy(9.8) - 60; }
     else if (tg.type === 'bell') { X = sx(23.7); Y = sy(4.6) - 80; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }

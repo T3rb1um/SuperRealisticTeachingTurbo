@@ -1116,6 +1116,7 @@ function renderHallWorld() {
   list.push({ y: 5.0, f: drawHallBoard });
   list.push({ y: 5.05, f: drawHallPult });
   list.push({ y: 4.95, f: drawHallBell });
+  if (has('binderbox')) list.push({ y: 1.0, f: () => { const X = sx(13.1), Y = sy(1.0); softShadow(X + 11, Y, 12, 3); R(X, Y - 16, 22, 16, '#d8c8a0'); R(X, Y - 16, 22, 3, '#b08a5a'); ltext('BIND', X + 3, Y - 10, '#6b4a32', 1); } });
   list.push({ y: 4.0, f: () => drawSmartboard(6.6, 4.0) });
   list.push({ y: 9.4, f: () => { const X = sx(29.4), Y = sy(9.4); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
   for (const k of G.kids) {

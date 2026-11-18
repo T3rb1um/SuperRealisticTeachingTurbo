@@ -149,7 +149,7 @@ function hallTarget() {
   if (G.puddle && Math.hypot(G.p.x - G.puddle.x, G.p.y - G.puddle.y) <= 1.3) return { type: 'puddle' };
   if (canBell() && nearBlock('Klingel')) return { type: 'bell' };
   const mb = hallMotorBlock(); if (mb && distToBlock(G.p.x, G.p.y, mb) <= CONFIG.player.reach) return { type: 'motor' };
-  if (G.puddle && !G.binder && nearBlock('Hochregal')) return { type: 'binder' };
+  if (G.puddle && !G.binder && (nearBlock('Hochregal') || (has('binderbox') && Math.hypot(G.p.x - 13.45, G.p.y - 1.3) <= 1.2))) return { type: 'binder' };
   if (G.kids.some(k => k.state === 'mat') && G.mats < CONFIG.hall.mat.carry && nearBlock('Werkzeugwagen')) return { type: 'parts' };
   return null;
 }
