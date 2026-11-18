@@ -121,6 +121,10 @@ const CONFIG = {
   // Praxishalle: Wartungsauftrag Radlader
   hall: {
     seat: 0.7,                 // Lernen an der Station
+    fatigue: { time: 130, spawn: 0.8, learn: 0.3 },                               // Müdigkeit über die Doppelstunde
+    pause: { time: 10, recover: 3 },                                              // Ansage PAUSE (1× pro Stunde)
+    tempo: { time: 20, cooldown: 35, mult: 1.3, spawn: 1.5, fatigue: 0.25 },      // Ansage TEMPO
+    helper: { mult: 0.5 },                                                         // je helfendem Azubi +50 % eines Gruppenplatzes
     order: { matAt: 40, prepCap: 30, presenceBoost: 1.3, checkBonus: 4, bonus: 12, taler: 5 },   // Pakete, Meilensteine, Auftragsbonus
     check: { hold: 1.2, patience: 22 },                                           // Abnahme
     mat:   { patience: 20, carry: 3 },                                            // Teile vom Werkzeugwagen
@@ -722,9 +726,18 @@ function applyModifiers() {
   if (has('seating')) { CONFIG.kids.noSpread = true; CONFIG.forms[1].learn *= 0.85; }
   if (has('light')) CONFIG.forecast = true;
   if (has('tables')) { CONFIG.forms[2].groupSheets = 2; CONFIG.forms[2].noise += 0.2; }
-  if (isHall()) {                                             // Praxishalle: mobile Tafel = Rotation ansagen
+  if (isHall()) {                                             // Praxishalle: Doppelstunde, mobile Tafel = Ansagen
     CONFIG.board.beamer = true;
-    CONFIG.forms.forEach(f => Object.assign(f, { write: 1.0 * Math.pow(0.8, upLevel('chalk')), learn: 1, noise: 1, sheets: false, groupSheets: 0, label: 'Stationsarbeit' }));
+    CONFIG.week.lessonsPerDay = 1;                            // 1 Doppelstunde pro Tag
+    [['PAUSE', 'Pause ansagen'], ['HELFER', 'Helfer einteilen'], ['TEMPO', 'Tempo machen']].forEach(([n, l], i) =>
+      Object.assign(CONFIG.forms[i], { name: n, label: 'Doppelstunde', write: 1.0, learn: 1, noise: 1, sheets: false, groupSheets: 0 }));
+    const examL = RUN.day === CONFIG.week.days.length - 1;    // Freitag: Arbeit in normaler Länge
+    if (!examL) {
+      const f = 2; CONFIG.lessonSeconds *= f; CONFIG.phases.finalStart = CONFIG.lessonSeconds - 20;
+      CONFIG.learning.stars = CONFIG.learning.stars.map(v => v * f);
+      CONFIG.door.arriveTo *= f; CONFIG.events.phone.from *= f; CONFIG.events.phone.to *= f;
+      CONFIG.doorEvents.from *= f; CONFIG.doorEvents.to *= f;
+    }
   }
   if (isLab()) {                                              // SPS-Labor: Beamer statt Tafel, Aufgaben statt Arbeitsformen
     CONFIG.board.beamer = true;
@@ -1273,14 +1286,14 @@ function useGong() {
 }
 
 function selectForm(i) {
-  if (G.writing || isHall()) return;
+  if (G.writing) return;
   G.formSel = (i + CONFIG.forms.length) % CONFIG.forms.length;
-  if (!inBoardZone()) G.formFx = 1.6;                 // Denkblase über der Lehrkraft
+  if (!inBoardZone() && !isHall()) G.formFx = 1.6;     // Denkblase über der Lehrkraft
   sfx.select();
 }
 
 function finishWriting() {
-  if (isHall()) { hallRotate(); return; }
+  if (isHall()) { hallAction(G.formSel); return; }
   if (isLab()) {                                     // Beamer: nur Schwierigkeit umschalten, dann kurz laden
     G.formIdx = G.formSel; G.writeProg = 0; G.writing = false; G.needRelease = true; G.nextSubject = null;
     G.subject = pick(teacherSubjects()); G.labPause = CONFIG.lab.switchPause; sfx.done();
@@ -1363,7 +1376,7 @@ function update(dt) {
   if (G.printerOn) { G.copier.shake = Math.max(G.copier.shake, 0.05); if (Math.random() < dt * 0.8) sfx.print(); }
 
   /* --- Tafel schreiben (E halten) --- */
-  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isHall() ? false : isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
+  const canWrite = !G.exam && inBoardZone() && !G.needRelease && G.carry <= clipCap() && !asking.length && !G.explaining && (isHall() ? hallCanAct(G.formSel) : isLab() ? G.formSel !== G.formIdx && !(G.labPause > 0) : (G.supply < 99.5 || G.formSel !== G.formIdx));
   if (hold && canWrite) {
     if (!G.writing && G.writeProg === 0) {
       G.nextSubject = pick(teacherSubjects().filter(s => s !== G.subject));
@@ -1639,7 +1652,7 @@ function update(dt) {
 
   /* --- Lernfortschritt --- */
   const L = CONFIG.learning;
-  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
+  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat * (1 - CONFIG.hall.fatigue.learn * (G.fatigue || 0)) : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
   const learners = G.laughT > 0 || G.exam ? [] : G.kids.filter(k => k.state === 'work' || k.state === 'fidget');
   for (const k of learners) k.learn = (k.learn || 0) + L.perKid * form().learn * quality * pairMult(k) * dt;      // eigener Lernstand
   if (G.exam) for (const k of G.kids) {                                                          // Klassenarbeit: Konzentration
@@ -1983,7 +1996,7 @@ function rulesHtml() {
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.<br>
        <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
        <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).<br>
-       <b style="color:#f2c14e">Praxishalle</b>: Wartungsauftrag Radlader mit 4 Paketen (Balken an den Stationen, Checkliste auf der mobilen Tafel). Bei 40 % braucht ein Paket ein Teil vom Werkzeugwagen, bei 100 % deine Abnahme (beim Azubi E halten). Wo du stehst, wird 30 % schneller gearbeitet. Ölfleck: Bindemittel im Hochregal holen, dann E halten · LAUT: Motor abstellen · Radlader-Kletterer: E · nur ein WC.</p>
+       <b style="color:#f2c14e">Praxishalle</b>: Wartungsauftrag Radlader mit 4 Paketen (Balken an den Stationen, Checkliste auf der mobilen Tafel). Bei 40 % braucht ein Paket ein Teil vom Werkzeugwagen, bei 100 % deine Abnahme (beim Azubi E halten). Wo du stehst, wird 30 % schneller gearbeitet. Doppelstunde: an der mobilen Tafel 1 PAUSE (1×, alle ruhig), 2 HELFER (Radlader-Gruppe hilft), 3 TEMPO (schneller, aber unruhiger) – wählen und E halten. Ölfleck: Bindemittel im Hochregal holen, dann E halten · LAUT: Motor abstellen · Radlader-Kletterer: E · nur ein WC.</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>`;
 }

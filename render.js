@@ -1132,7 +1132,14 @@ function drawPresence() {
 
 function drawFormPicker() {
   const X = sx(G.p.x), Y = sy(G.p.y) + 10;
-  if (typeof isHall === 'function' && isHall()) return;
+  if (typeof isHall === 'function' && isHall()) {             // Ansagen an der mobilen Tafel
+    const items = CONFIG.forms.map((f, i) => `${i + 1} ${f.name}${hallCanAct(i) ? '' : ' -'}`), widths = items.map(t => t.length * 8 + 6);
+    const total = widths.reduce((a, b) => a + b, 0) + 8; let x = Math.round(clamp(X - total / 2, 8, cv.width - total - 8));
+    rr(x - 6, Y - 6, total + 12, 22, 'rgba(38,35,46,.92)', 3);
+    items.forEach((t, i) => { const on = i === G.formSel; if (on) rr(x - 2, Y - 3, widths[i], 16, hallCanAct(i) ? PAL.yellow : PAL.grey, 2); ltext(t, x + 2, Y, on ? PAL.dark : hallCanAct(i) ? COL.white : PAL.grey, 2); x += widths[i] + 4; });
+    ptext(['10 S PAUSE: ALLE RUHIG, 1X PRO STUNDE', 'RADLADER-GRUPPE HILFT BEIM LANGSAMSTEN PAKET', '20 S SCHNELLER, ABER UNRUHIGER UND MUEDER'][G.formSel], X, Y + 26, PAL.yellow, PAL.dark, 1);
+    return;
+  }
   if (G.kids.some(k => k.state === 'question')) { ptext('FRAGE: E HALTEN', X, Y, '#9fd39a'); return; }
   const items = CONFIG.forms.map((f, i) => `${i + 1} ${f.name}`);
   const widths = items.map(s => s.length * 8 + 6);

@@ -18,6 +18,8 @@ const HALL_PKG = [
   { id: 'mot', name: 'MOTOR',      grps: [2],    time: 24, part: 'FILTER',     bar: [16.4, 8.2] },
   { id: 'rad', name: 'ENDMONTAGE', grps: [3],    time: 18, part: 'SCHRAUBEN',  bar: [25.6, 9.4] },
 ];
+// Stehplätze für Helfer neben den Paketen (Ansage HELFER)
+const HALL_HELP = [[[13.0, 2.4], [13.8, 2.4]], [[5.6, 11.6], [6.4, 11.6]], [[16.3, 8.8], [17.2, 8.5]], null];
 const HALL_ORDERS = ['RADLADER: INSPEKTION', 'RADLADER: HYDRAULIK UNDICHT', 'RADLADER: LICHT + MOTOR', 'RADLADER: WINTERFEST'];
 const hallBox = (x, y) => ({ x0: x - 0.3, y0: y - 0.35, x1: x + 0.3, y1: y });
 const hallStation = k => k.grp;
@@ -52,12 +54,57 @@ function hallInitLesson() {
   G.motorLoud = null; G.motorAt = !G.exam && Math.random() < H.motor.chance ? rand(H.motor.from, H.motor.to) : null;
   G.climbAt = !G.exam && Math.random() < H.climb.chance ? rand(H.climb.from, H.climb.to) : null;
   G.wcBusy = null; G.wcQueue = [];
+  G.fatigue = 0; G.breakT = 0; G.pauseUsed = false; G.tempoT = 0; G.tempoCd = 0; G.helpers = null;
+  const f = CONFIG.lessonSeconds / 90;                   // Doppelstunde: Ereignisfenster strecken
+  ['leakAt', 'motorAt', 'climbAt'].forEach(key => { if (G[key] !== null) G[key] *= f; });
+}
+
+/* ------------------------------------------- Ansagen an der mobilen Tafel */
+function hallCanAct(i) {
+  if (G.exam || G.breakT > 0) return false;
+  if (i === 0) return !G.pauseUsed;
+  if (i === 1) return G.pkg && !G.pkg.slice(0, 3).every(P => P.done) && !G.kids.some(k => k.hallMove);
+  if (i === 2) return !(G.tempoT > 0) && !(G.tempoCd > 0);
+  return false;
+}
+function hallAction(i) {
+  const H = CONFIG.hall;
+  G.writeProg = 0; G.writing = false; G.needRelease = true; G.nextSubject = null;
+  if (!hallCanAct(i)) { sfx.wrong(); return; }
+  if (i === 0) {                                        // PAUSE: alle ruhen kurz, Unruhe weg, Müdigkeit zurück
+    G.pauseUsed = true; G.breakT = H.pause.time;
+    G.kids.forEach(k => { if (isSeated(k) && ['work', 'fidget', 'idle', 'loud'].includes(k.state)) { k.state = 'break'; k.t = 0; k.needsFix = null; } });
+    float(sx(11.6), sy(4.75) - 70, 'PAUSE!', '#9fd3f0'); sfx.bell();
+  } else if (i === 1) {                                 // HELFER: Radlader-Gruppe hilft beim langsamsten Paket
+    if (G.helpers !== null && G.helpers !== undefined) { hallHelpersHome(); float(sx(11.6), sy(4.75) - 70, 'HELFER ZURÜCK', '#9fd3f0'); }
+    else {
+      let best = -1; for (let j = 0; j < 3; j++) if (!G.pkg[j].done && (best < 0 || G.pkg[j].p < G.pkg[best].p)) best = j;
+      if (best >= 0) { hallHelpersTo(best); float(sx(11.6), sy(4.75) - 70, 'HELFER: ' + HALL_PKG[best].name, '#9fd3f0'); }
+    }
+    sfx.done();
+  } else if (i === 2) {                                 // TEMPO: kurz schneller, dafür unruhiger und müder
+    G.tempoT = H.tempo.time; G.tempoCd = H.tempo.cooldown;
+    float(sx(11.6), sy(4.75) - 70, 'TEMPO!', PAL.orange); sfx.start();
+  }
+  reward(null);
+}
+function hallMoveTo(k, x, y) {
+  k.state = 'walk'; k.wx = k.x; k.wy = k.y; k.hallMove = true;
+  k.path = findPath(k.x, k.y, x, y); k.x = x; k.y = y; k.block = hallBox(x, y);
+}
+function hallHelpersTo(i) {
+  G.helpers = i;
+  G.kids.filter(k => k.grp === 3).forEach((k, n) => { const [x, y] = HALL_HELP[i][n]; k.helping = i; if (isSeated(k) && !['wc', 'wcq'].includes(k.state)) hallMoveTo(k, x, y); else { k.x = x; k.y = y; k.block = hallBox(x, y); } });
+}
+function hallHelpersHome() {
+  G.helpers = null;
+  G.kids.filter(k => k.grp === 3).forEach(k => { k.helping = null; const [x, y] = hallSpot(k); if (isSeated(k)) hallMoveTo(k, x, y); else { k.x = x; k.y = y; k.block = hallBox(x, y); } });
 }
 function hallRotate() { G.writeProg = 0; G.writing = false; G.needRelease = true; }   // (keine Rotation mehr)
 function hallArrive(k) {
   k.hallMove = false; k.path = [];
   backToWork(k, 1.5);
-  const [, , face] = hallSpot(k); k.face = face;
+  const [, , face] = hallSpot(k); k.face = k.helping !== null && k.helping !== undefined ? 'up' : face;
   if (G.puddle && G.puddle.grps.includes(k.grp)) k.state = 'leak';
 }
 
@@ -80,7 +127,7 @@ function hallEnterWC(k) {
   sfx.door();
 }
 function hallBackFromWC(k) {
-  const W = RD().wcDoor, [x, y] = hallSpot(k);
+  const W = RD().wcDoor, x = k.x, y = k.y;
   k.inWC = false; G.wcBusy = null;
   k.state = 'walk'; k.wx = W.x; k.wy = W.y + 0.5; k.hallMove = true;
   k.path = findPath(k.wx, k.wy, x, y);
@@ -126,6 +173,7 @@ function hallTap(tg) {
     return true;
   }
   if (k.state === 'check') { G.hallHold = { kind: 'check', k, t: 0 }; return true; }
+  if (k.state === 'break') { float(sx(k.x), sy(k.y) - 80, 'PAUSE', '#9fd3f0'); return true; }
   if (k.state === 'climbSoon' || k.state === 'climb') { backToWork(k, 3); reward(k); float(sx(k.x), sy(k.y) - 80, 'RUNTER DA!', PAL.orange); sfx.scold(); return true; }
   if (k.state === 'wcq') { float(sx(k.x), sy(k.y) - 80, 'GLEICH', '#5cc8c0'); return true; }
   if (k.state === 'leak') { float(sx(k.x), sy(k.y) - 80, 'ÖL WEG!', PAL.orange); return true; }
@@ -171,13 +219,28 @@ function hallTick(dt, hold, limit) {
   G.wcQueue = G.wcQueue.filter(k => k.state === 'wcq');
   if (!G.wcBusy && G.wcQueue.length) { const k = G.wcQueue.shift(); k.wcQueued = true; hallSendToWC(k); }
   if (G.exam) return;
+  // Pause / Tempo / Müdigkeit
+  if (G.breakT > 0) {
+    G.breakT -= dt; G.order = Math.min(100, G.order + H.pause.recover * dt);
+    if (G.breakT <= 0) { G.fatigue = 0; G.kids.forEach(k => { if (k.state === 'break') backToWork(k, 3); }); float(sx(11.6), sy(4.75) - 70, 'WEITER GEHT\'S', '#9fd39a'); sfx.bell(); }
+    return;                                                                  // in der Pause steht alles
+  }
+  G.fatigue = Math.min(1, (G.fatigue || 0) + dt / H.fatigue.time);
+  if (G.tempoT > 0 && (G.tempoT -= dt) <= 0) G.fatigue = Math.min(1, G.fatigue + H.tempo.fatigue);
+  if (G.tempoCd > 0) G.tempoCd -= dt;
+  if (G.helpers !== null && G.helpers !== undefined && (G.pkg[G.helpers].done || G.pkg.slice(0, 3).every(P => P.done))) {   // Paket fertig → Helfer zurück
+    hallHelpersHome(); float(sx(11.6), sy(4.75) - 70, 'HELFER ZURÜCK', '#9fd3f0');
+  }
   // Arbeitspakete füllen sich
   const othersDone = G.pkg.slice(0, 3).every(P => P.done);
   HALL_PKG.forEach((D, i) => {
     const P = G.pkg[i]; if (P.done || P.need) return;
-    const ks = G.kids.filter(k => D.grps.includes(k.grp));
-    const working = ks.filter(k => k.state === 'work' || k.state === 'fidget').length / ks.length;
-    let rate = 100 / D.time * working * (teacherNear(i) ? H.order.presenceBoost : 1);
+    const ks = G.kids.filter(k => D.grps.includes(k.grp) && !(k.helping >= 0 && k.helping !== null && k.helping !== undefined));
+    const own = G.kids.filter(k => D.grps.includes(k.grp)).length;
+    const isWork = k => (k.state === 'work' || k.state === 'fidget') && !k.hallMove;
+    const helpers = G.kids.filter(k => k.helping === i && isWork(k)).length;
+    const working = (ks.filter(isWork).length + helpers * H.helper.mult * 2) / own;
+    let rate = 100 / D.time * working * (teacherNear(i) ? H.order.presenceBoost : 1) * (G.tempoT > 0 ? H.tempo.mult : 1);
     if (D.id === 'mot' && G.motorLoud) rate *= 0.3;
     const cap = D.id === 'rad' && !othersDone ? H.order.prepCap : 100;
     const before = P.p; P.p = Math.min(cap, P.p + rate * dt);
@@ -232,4 +295,4 @@ function hallTick(dt, hold, limit) {
   }
 }
 const hallDrain = () => !isHall() ? 0 : (G.motorLoud ? CONFIG.hall.motor.drain : 0) + G.kids.filter(k => k.state === 'climb').length * CONFIG.hall.climb.drain + G.kids.filter(k => k.state === 'wcq').length * 0.3 + (G.puddle ? 0.2 : 0);
-const hallSpawnMult = () => (G.motorLoud ? CONFIG.hall.motor.spawn : 1);
+const hallSpawnMult = () => (G.motorLoud ? CONFIG.hall.motor.spawn : 1) * (1 + CONFIG.hall.fatigue.spawn * (G.fatigue || 0)) * (G.tempoT > 0 ? CONFIG.hall.tempo.spawn : 1) * (G.breakT > 0 ? 0 : 1);
