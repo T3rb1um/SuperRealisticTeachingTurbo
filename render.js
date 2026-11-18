@@ -1137,7 +1137,7 @@ function drawFormPicker() {
     const total = widths.reduce((a, b) => a + b, 0) + 8; let x = Math.round(clamp(X - total / 2, 8, cv.width - total - 8));
     rr(x - 6, Y - 6, total + 12, 22, 'rgba(38,35,46,.92)', 3);
     items.forEach((t, i) => { const on = i === G.formSel; if (on) rr(x - 2, Y - 3, widths[i], 16, hallCanAct(i) ? PAL.yellow : PAL.grey, 2); ltext(t, x + 2, Y, on ? PAL.dark : hallCanAct(i) ? COL.white : PAL.grey, 2); x += widths[i] + 4; });
-    ptext(['10 S PAUSE: ALLE RUHIG, 1X PRO STUNDE', 'RADLADER-GRUPPE HILFT BEIM LANGSAMSTEN PAKET', '20 S SCHNELLER, ABER UNRUHIGER UND MUEDER'][G.formSel], X, Y + 26, PAL.yellow, PAL.dark, 1);
+    ptext(['RADLADER-GRUPPE HILFT BEIM LANGSAMSTEN PAKET', '20 S SCHNELLER, ABER UNRUHIGER UND MUEDER', G.freeWork ? 'FREIES ARBEITEN AUS: WIEDER NORMAL' : 'FREIES ARBEITEN: RUHIGER, ABER LANGSAMER'][G.formSel], X, Y + 26, PAL.yellow, PAL.dark, 1);
     return;
   }
   if (G.kids.some(k => k.state === 'question')) { ptext('FRAGE: E HALTEN', X, Y, '#9fd39a'); return; }
@@ -1318,6 +1318,7 @@ function renderOverlay() {
     else if (tg.type === 'motor') { const b = hallMotorBlock(); X = sx((b.x0 + b.x1) / 2); Y = sy(b.y0) - 110; }
     else if (tg.type === 'binder') { X = sx(0.75); Y = sy(3.2) - 100; }
     else if (tg.type === 'parts') { X = sx(17.4); Y = sy(9.8) - 60; }
+    else if (tg.type === 'bell') { X = sx(23.7); Y = sy(4.6) - 80; }
     else if (tg.type === 'door') { X = sx(DOOR.cx); Y = sy(RH) - 78; }
     else if (tg.type === 'npc') { X = sx(G.npc.x); Y = sy(G.npc.y) - 112; }
     else { X = sx(tg.kid.x); Y = sy(tg.kid.y) - (['idle', 'loud', 'wait', 'question', 'wc', 'phone', 'cheat', 'pc', 'plc', 'test', 'mat', 'psa', 'check', 'climb', 'climbSoon', 'wcq', 'leak'].includes(tg.kid.state) ? 110 : ['fidget', 'phoneSoon'].includes(tg.kid.state) ? 96 : 70); }

@@ -1057,6 +1057,7 @@ function drawHallBoard() {                     // mobile Tafel: Auftrag mit Chec
   const F = G.fatigue || 0; R(X, Y + 50, 80, 4, '#d6d9dc'); R(X, Y + 50, Math.round(80 * F), 4, F > 0.7 ? PAL.red : F > 0.4 ? PAL.orange : '#9fd39a');
   if (G.breakT > 0) ltext('PAUSE ' + Math.ceil(G.breakT), X + 44, Y + 3, '#2f6db5', 1);
   else if (G.tempoT > 0) ltext('TEMPO!', X + 50, Y + 3, PAL.orange, 1);
+  else if (G.freeWork) ltext('FREI', X + 58, Y + 3, '#7cc47a', 1);
   HALL_PKG.forEach((D, i) => {
     const P = G.pkg[i], yy = Y + 12 + i * 8;
     R(X + 4, yy, 5, 5, P.done ? '#7cc47a' : '#d6d9dc'); if (P.done) { px(X + 5, yy + 2, COL.white); px(X + 6, yy + 3, COL.white); px(X + 7, yy + 1, COL.white); }
@@ -1079,6 +1080,15 @@ function drawHallPult() {                      // Stehpult mit Ablage
   R(b.X + 2, b.Y - 2, 24, 8, '#555c68');
   for (let i = 0; i < Math.min(G.stash, 6); i++) R(b.X + 3, b.Y + 4 - i * 2, 22, 2, i % 2 ? '#f0ece4' : COL.white);
   if (G.stash > 0) ptext(G.stash + '/' + CONFIG.deskStashMax, b.X + 14, b.Y - 16, COL.white, PAL.dark, 1);
+}
+function drawHallBell() {                      // Pausenklingel am Büro (Ständer mit Glocke)
+  const X = sx(23.7), Y = sy(4.95), used = G.pauseUsed, ring = (G.bellFx || 0) > 0;
+  if (ring) G.bellFx = Math.max(0, G.bellFx - 0.02);
+  softShadow(X, Y, 8, 2);
+  R(X - 1, Y - 34, 3, 34, '#555c68'); R(X - 6, Y - 2, 13, 3, '#3a3d46');
+  const sw = ring ? Math.round(Math.sin(clockT * 30) * 2) : 0;
+  disc(X + 1 + sw, Y - 38, 6, used ? '#8a7a4a' : '#e8b830'); R(X - 5 + sw, Y - 36, 13, 3, used ? '#6b5f3a' : '#c99212'); disc(X + 1 + sw, Y - 32, 2, '#3a3d46');
+  if (!used && blink(0.6)) px(X - 2, Y - 41, COL.white);
 }
 function drawPuddle() {
   const P = G.puddle; if (!P) return;
@@ -1105,6 +1115,7 @@ function renderHallWorld() {
   list.push({ y: 9.9, f: () => drawElecWall(7.0, 9.9, 2) });
   list.push({ y: 5.0, f: drawHallBoard });
   list.push({ y: 5.05, f: drawHallPult });
+  list.push({ y: 4.95, f: drawHallBell });
   list.push({ y: 4.0, f: () => drawSmartboard(6.6, 4.0) });
   list.push({ y: 9.4, f: () => { const X = sx(29.4), Y = sy(9.4); R(X, Y - 22, 10, 22, '#d94a3a'); R(X + 2, Y - 26, 6, 4, '#26232e'); } });
   for (const k of G.kids) {
@@ -1144,7 +1155,7 @@ function drawHallOverlay() {
   if (G.puddle) { const P = G.puddle; bubble(sx(P.x), sy(P.y) - 30 + (blink(4) ? -2 : 0), PAL.orange, P.t < H.leak.slipAfter ? 1 - P.t / H.leak.slipAfter : 1, '!', P.t >= H.leak.slipAfter ? PAL.red : COL.white, 10); }
   if (G.motorLoud) { const b = hallMotorBlock(); bubble(sx((b.x0 + b.x1) / 2), sy(b.y0) - 84, PAL.orange, 1, 'LAUT', COL.white, 16); }
   if (G.breakT > 0) bubble(sx(11.6), sy(5.0) - 92, '#9fd3f0', G.breakT / CONFIG.hall.pause.time, 'PAUSE', COL.white, 18);
-  else if ((G.fatigue || 0) > 0.75 && !G.pauseUsed && !G.exam && blink(1)) ptext('MUEDE - PAUSE?', sx(11.6), sy(5.0) - 86, PAL.orange, PAL.dark, 1);
+  else if ((G.fatigue || 0) > 0.75 && !G.pauseUsed && !G.exam && blink(1)) ptext('MUEDE - PAUSE? (KLINGEL)', sx(23.7), sy(4.6) - 96, PAL.orange, PAL.dark, 1);
   if (G.binder) { const X = sx(G.p.x) + 14, Y = sy(G.p.y) - 34; R(X, Y, 10, 12, '#d8c8a0'); R(X, Y, 10, 3, '#b08a5a'); }
   if (G.mats) for (let i = 0; i < G.mats; i++) { const X = sx(G.p.x) - 20 - i * 5, Y = sy(G.p.y) - 26; R(X, Y, 4, 4, '#9aa2ab'); }
 }

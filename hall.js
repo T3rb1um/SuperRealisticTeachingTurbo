@@ -54,35 +54,42 @@ function hallInitLesson() {
   G.motorLoud = null; G.motorAt = !G.exam && Math.random() < H.motor.chance ? rand(H.motor.from, H.motor.to) : null;
   G.climbAt = !G.exam && Math.random() < H.climb.chance ? rand(H.climb.from, H.climb.to) : null;
   G.wcBusy = null; G.wcQueue = [];
-  G.fatigue = 0; G.breakT = 0; G.pauseUsed = false; G.tempoT = 0; G.tempoCd = 0; G.helpers = null;
+  G.fatigue = 0; G.breakT = 0; G.pauseUsed = false; G.tempoT = 0; G.tempoCd = 0; G.helpers = null; G.freeWork = false; G.bellFx = 0;
   const f = CONFIG.lessonSeconds / 90;                   // Doppelstunde: Ereignisfenster strecken
   ['leakAt', 'motorAt', 'climbAt'].forEach(key => { if (G[key] !== null) G[key] *= f; });
 }
 
 /* ------------------------------------------- Ansagen an der mobilen Tafel */
+// Tafel: 0 HELFER, 1 TEMPO, 2 FREI (freies Arbeiten an/aus). Pause gibt es an der Klingel neben dem Büro.
 function hallCanAct(i) {
   if (G.exam || G.breakT > 0) return false;
-  if (i === 0) return !G.pauseUsed;
-  if (i === 1) return G.pkg && !G.pkg.slice(0, 3).every(P => P.done) && !G.kids.some(k => k.hallMove);
-  if (i === 2) return !(G.tempoT > 0) && !(G.tempoCd > 0);
+  if (i === 0) return G.pkg && !G.pkg.slice(0, 3).every(P => P.done) && !G.kids.some(k => k.hallMove);
+  if (i === 1) return !(G.tempoT > 0) && !(G.tempoCd > 0) && !G.freeWork;
+  if (i === 2) return true;
   return false;
+}
+const canBell = () => isHall() && !G.exam && !G.pauseUsed && !(G.breakT > 0);
+function hallPause() {                                  // Klingel: alle ruhen kurz, Unruhe weg, Müdigkeit zurück
+  const H = CONFIG.hall;
+  G.pauseUsed = true; G.breakT = H.pause.time;
+  G.kids.forEach(k => { if (isSeated(k) && ['work', 'fidget', 'idle', 'loud'].includes(k.state)) { k.state = 'break'; k.t = 0; k.needsFix = null; } });
+  float(sx(23.7), sy(4.6) - 70, 'PAUSE!', '#9fd3f0'); sfx.bell(); G.bellFx = 1;
 }
 function hallAction(i) {
   const H = CONFIG.hall;
   G.writeProg = 0; G.writing = false; G.needRelease = true; G.nextSubject = null;
   if (!hallCanAct(i)) { sfx.wrong(); return; }
-  if (i === 0) {                                        // PAUSE: alle ruhen kurz, Unruhe weg, Müdigkeit zurück
-    G.pauseUsed = true; G.breakT = H.pause.time;
-    G.kids.forEach(k => { if (isSeated(k) && ['work', 'fidget', 'idle', 'loud'].includes(k.state)) { k.state = 'break'; k.t = 0; k.needsFix = null; } });
-    float(sx(11.6), sy(4.75) - 70, 'PAUSE!', '#9fd3f0'); sfx.bell();
-  } else if (i === 1) {                                 // HELFER: Radlader-Gruppe hilft beim langsamsten Paket
+  if (i === 2) {                                        // FREI: freies Arbeiten – ruhiger, aber langsamer (an/aus)
+    G.freeWork = !G.freeWork; if (G.freeWork) G.tempoT = 0;
+    float(sx(11.6), sy(4.75) - 70, G.freeWork ? 'FREIES ARBEITEN' : 'WIEDER ANLEITEN', '#9fd3f0'); sfx.calm();
+  } else if (i === 0) {                                 // HELFER: Radlader-Gruppe hilft beim langsamsten Paket
     if (G.helpers !== null && G.helpers !== undefined) { hallHelpersHome(); float(sx(11.6), sy(4.75) - 70, 'HELFER ZURÜCK', '#9fd3f0'); }
     else {
       let best = -1; for (let j = 0; j < 3; j++) if (!G.pkg[j].done && (best < 0 || G.pkg[j].p < G.pkg[best].p)) best = j;
       if (best >= 0) { hallHelpersTo(best); float(sx(11.6), sy(4.75) - 70, 'HELFER: ' + HALL_PKG[best].name, '#9fd3f0'); }
     }
     sfx.done();
-  } else if (i === 2) {                                 // TEMPO: kurz schneller, dafür unruhiger und müder
+  } else if (i === 1) {                                 // TEMPO: kurz schneller, dafür unruhiger und müder
     G.tempoT = H.tempo.time; G.tempoCd = H.tempo.cooldown;
     float(sx(11.6), sy(4.75) - 70, 'TEMPO!', PAL.orange); sfx.start();
   }
@@ -140,6 +147,7 @@ const hallMotorBlock = () => G.motorLoud ? blockByName(G.motorLoud.m ? 'Motor 2'
 function hallTarget() {
   if (!isHall() || !G || !G.pkg) return null;
   if (G.puddle && Math.hypot(G.p.x - G.puddle.x, G.p.y - G.puddle.y) <= 1.3) return { type: 'puddle' };
+  if (canBell() && nearBlock('Klingel')) return { type: 'bell' };
   const mb = hallMotorBlock(); if (mb && distToBlock(G.p.x, G.p.y, mb) <= CONFIG.player.reach) return { type: 'motor' };
   if (G.puddle && !G.binder && nearBlock('Hochregal')) return { type: 'binder' };
   if (G.kids.some(k => k.state === 'mat') && G.mats < CONFIG.hall.mat.carry && nearBlock('Werkzeugwagen')) return { type: 'parts' };
@@ -153,6 +161,7 @@ function hallTap(tg) {
     else { float(sx(G.puddle.x), sy(G.puddle.y) - 50, 'BINDEMITTEL HOLEN (REGAL)', PAL.orange); sfx.wrong(); }
     return true;
   }
+  if (tg.type === 'bell') { hallPause(); return true; }
   if (tg.type === 'motor') {
     const mb = hallMotorBlock(); G.motorLoud = null; reward(null);
     float(sx((mb.x0 + mb.x1) / 2), sy(mb.y0) - 70, 'MOTOR AUS', '#9fd39a'); sfx.calm(); return true;
@@ -240,7 +249,7 @@ function hallTick(dt, hold, limit) {
     const isWork = k => (k.state === 'work' || k.state === 'fidget') && !k.hallMove;
     const helpers = G.kids.filter(k => k.helping === i && isWork(k)).length;
     const working = (ks.filter(isWork).length + helpers * H.helper.mult * 2) / own;
-    let rate = 100 / D.time * working * (teacherNear(i) ? H.order.presenceBoost : 1) * (G.tempoT > 0 ? H.tempo.mult : 1);
+    let rate = 100 / D.time * working * (teacherNear(i) ? H.order.presenceBoost : 1) * (G.tempoT > 0 ? H.tempo.mult : 1) * (G.freeWork ? H.free.rate : 1);
     if (D.id === 'mot' && G.motorLoud) rate *= 0.3;
     const cap = D.id === 'rad' && !othersDone ? H.order.prepCap : 100;
     const before = P.p; P.p = Math.min(cap, P.p + rate * dt);
@@ -295,4 +304,4 @@ function hallTick(dt, hold, limit) {
   }
 }
 const hallDrain = () => !isHall() ? 0 : (G.motorLoud ? CONFIG.hall.motor.drain : 0) + G.kids.filter(k => k.state === 'climb').length * CONFIG.hall.climb.drain + G.kids.filter(k => k.state === 'wcq').length * 0.3 + (G.puddle ? 0.2 : 0);
-const hallSpawnMult = () => (G.motorLoud ? CONFIG.hall.motor.spawn : 1) * (1 + CONFIG.hall.fatigue.spawn * (G.fatigue || 0)) * (G.tempoT > 0 ? CONFIG.hall.tempo.spawn : 1) * (G.breakT > 0 ? 0 : 1);
+const hallSpawnMult = () => (G.motorLoud ? CONFIG.hall.motor.spawn : 1) * (1 + CONFIG.hall.fatigue.spawn * (G.fatigue || 0)) * (G.tempoT > 0 ? CONFIG.hall.tempo.spawn : 1) * (G.breakT > 0 ? 0 : 1) * (G.freeWork ? CONFIG.hall.free.spawn : 1);

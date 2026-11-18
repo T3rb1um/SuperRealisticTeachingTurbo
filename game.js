@@ -124,7 +124,8 @@ const CONFIG = {
     fatigue: { time: 130, spawn: 0.8, learn: 0.3 },                               // Müdigkeit über die Doppelstunde
     pause: { time: 10, recover: 3 },                                              // Ansage PAUSE (1× pro Stunde)
     tempo: { time: 20, cooldown: 35, mult: 1.3, spawn: 1.5, fatigue: 0.25 },      // Ansage TEMPO
-    helper: { mult: 0.5 },                                                         // je helfendem Azubi +50 % eines Gruppenplatzes
+    helper: { mult: 0.5 },
+    free: { rate: 0.6, spawn: 0.35, learn: 0.8 },                                  // FREI: ruhiger, aber langsamer                                                         // je helfendem Azubi +50 % eines Gruppenplatzes
     order: { matAt: 40, prepCap: 30, presenceBoost: 1.3, checkBonus: 4, bonus: 12, taler: 5 },   // Pakete, Meilensteine, Auftragsbonus
     check: { hold: 1.2, patience: 22 },                                           // Abnahme
     mat:   { patience: 20, carry: 3 },                                            // Teile vom Werkzeugwagen
@@ -729,7 +730,7 @@ function applyModifiers() {
   if (isHall()) {                                             // Praxishalle: Doppelstunde, mobile Tafel = Ansagen
     CONFIG.board.beamer = true;
     CONFIG.week.lessonsPerDay = 1;                            // 1 Doppelstunde pro Tag
-    [['PAUSE', 'Pause ansagen'], ['HELFER', 'Helfer einteilen'], ['TEMPO', 'Tempo machen']].forEach(([n, l], i) =>
+    [['HELFER', 'Helfer einteilen'], ['TEMPO', 'Tempo machen'], ['FREI', 'Freies Arbeiten']].forEach(([n, l], i) =>
       Object.assign(CONFIG.forms[i], { name: n, label: 'Doppelstunde', write: 1.0, learn: 1, noise: 1, sheets: false, groupSheets: 0 }));
     const examL = RUN.day === CONFIG.week.days.length - 1;    // Freitag: Arbeit in normaler Länge
     if (!examL) {
@@ -1652,7 +1653,7 @@ function update(dt) {
 
   /* --- Lernfortschritt --- */
   const L = CONFIG.learning;
-  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat * (1 - CONFIG.hall.fatigue.learn * (G.fatigue || 0)) : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
+  const quality = Math.min(1, G.order / L.fullAt) * (isHall() ? CONFIG.hall.seat * (1 - CONFIG.hall.fatigue.learn * (G.fatigue || 0)) * (G.freeWork ? CONFIG.hall.free.learn : 1) : G.supply <= 0 ? 0.3 : 1) * (G.labPause > 0 ? 0 : 1);   // leere Tafel nur mit Wiederholungsaufgaben
   const learners = G.laughT > 0 || G.exam ? [] : G.kids.filter(k => k.state === 'work' || k.state === 'fidget');
   for (const k of learners) k.learn = (k.learn || 0) + L.perKid * form().learn * quality * pairMult(k) * dt;      // eigener Lernstand
   if (G.exam) for (const k of G.kids) {                                                          // Klassenarbeit: Konzentration
@@ -1996,7 +1997,7 @@ function rulesHtml() {
        Kopierer: muss nach einem vollen Auftrag abkühlen. Einmal am Tag rattert er und hat Papierstau: E hämmern.<br>
        <b style="color:#9fd3f0">SPS-Labor</b>: Am Beamer die Schwierigkeit wählen (1 / 2 / 3 oder Q, dann E halten). Schwer = mehr Lernen, aber mehr Pannen. Gelernt wird vor allem an der Teststation. Drucker oben links: nur ab und zu ein Datenblatt.
        <b style="color:#e8534a">PC</b> hängt: beim Azubi E halten · <b style="color:#f29a4e">STOP</b>: SPS im Stopp, E · <b style="color:#5cc8c0">T</b>: Paar will an der Anlage testen, immer nur eins gleichzeitig. An der Anlage E halten = beim Test helfen, Not-Aus mit E halten quittieren · <b style="color:#e8534a">NET</b>: Netzwerk weg, am Netzwerkschrank E halten · Fragen klärst du im Labor am Platz (E halten).<br>
-       <b style="color:#f2c14e">Praxishalle</b>: Wartungsauftrag Radlader mit 4 Paketen (Balken an den Stationen, Checkliste auf der mobilen Tafel). Bei 40 % braucht ein Paket ein Teil vom Werkzeugwagen, bei 100 % deine Abnahme (beim Azubi E halten). Wo du stehst, wird 30 % schneller gearbeitet. Doppelstunde: an der mobilen Tafel 1 PAUSE (1×, alle ruhig), 2 HELFER (Radlader-Gruppe hilft), 3 TEMPO (schneller, aber unruhiger) – wählen und E halten. Ölfleck: Bindemittel im Hochregal holen, dann E halten · LAUT: Motor abstellen · Radlader-Kletterer: E · nur ein WC.</p>
+       <b style="color:#f2c14e">Praxishalle</b>: Wartungsauftrag Radlader mit 4 Paketen (Balken an den Stationen, Checkliste auf der mobilen Tafel). Bei 40 % braucht ein Paket ein Teil vom Werkzeugwagen, bei 100 % deine Abnahme (beim Azubi E halten). Wo du stehst, wird 30 % schneller gearbeitet. Doppelstunde: an der mobilen Tafel 1 HELFER (Radlader-Gruppe hilft), 2 TEMPO (schneller, aber unruhiger), 3 FREI (freies Arbeiten an/aus: ruhiger, aber langsamer) – wählen und E halten. PAUSE (1×): an der Klingel neben dem Büro E. Ölfleck: Bindemittel im Hochregal holen, dann E halten · LAUT: Motor abstellen · Radlader-Kletterer: E · nur ein WC.</p>
     <p class="keys touch-hide">WASD / Pfeile laufen · E / Leertaste · 1 2 3 / Q Arbeitsform · P Pause · M Musik · F Vollbild · F2 oder ^ Debug</p>
     <p class="keys touch-only">Handy quer halten: links mit dem Daumen ziehen zum Laufen · rechts E (tippen oder halten) und Q (Arbeitsform wechseln) · [ ] = Vollbild</p>`;
 }

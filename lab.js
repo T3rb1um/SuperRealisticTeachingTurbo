@@ -52,6 +52,7 @@ const ROOMDEF = {
       { x0: 1.6, y0: 9.6, x1: 4.4, y1: 9.95, name: 'Elektrowand 1' }, { x0: 7.0, y0: 9.6, x1: 9.8, y1: 9.95, name: 'Elektrowand 2' },
       { x0: 10.3, y0: 4.75, x1: 13.0, y1: 5.05, name: 'Mobile Tafel' },
       { x0: 13.4, y0: 4.55, x1: 14.3, y1: 5.05, name: 'Lehrertisch' },          // Stehpult mit Ablage
+      { x0: 23.45, y0: 4.6, x1: 23.95, y1: 4.95, name: 'Klingel' },             // Pausenklingel am Büro
       { x0: 6.6, y0: 3.8, x1: 9.7, y1: 4.05, name: 'Smartboard' },
       { x0: 29.4, y0: 8.7, x1: 30, y1: 9.4, name: 'Feuerlöscher' },
     ],
