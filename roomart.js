@@ -1144,7 +1144,7 @@ function drawHallOverlay() {
   const H = CONFIG.hall;
   for (const k of G.kids) {
     if (!isSeated(k)) continue;
-    const X = sx(k.x) + (k.state === 'climb' ? 28 : 0), Y = sy(k.y) - 74 - (k.state === 'climb' ? 40 : 0);
+    const X = sx(k.x) + (bubbleOff.get(k) || 0) + (k.state === 'climb' ? 28 : 0), Y = sy(k.y) - 74 - (k.state === 'climb' ? 40 : 0);
     if (k.state === 'check') bubble(X, Y - 8, '#9fd39a', 1 - k.t / H.check.patience, 'OK?', COL.white, 13);
     if (k.state === 'mat') { bubble(X, Y - 8, PAL.yellow, 1 - k.t / H.mat.patience, '', COL.white, 11); R(X - 5, Y - 10, 10, 3, '#555c68'); R(X - 2, Y - 13, 4, 9, '#555c68'); }
     if (k.state === 'psa') { bubble(X, Y - 8, '#2f6db5', 1 - k.t / H.psa.patience, '', COL.white, 11); R(X - 6, Y - 10, 5, 4, COL.white); R(X + 1, Y - 10, 5, 4, COL.white); R(X - 1, Y - 9, 2, 1, COL.white); }

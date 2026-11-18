@@ -1243,10 +1243,28 @@ function drawCozy() {                          // Ausbau Klassenraum Stufe 1: Li
   R(lx, ly - 30, 2, 30, '#c9a43e'); rr(lx - 6, ly - 36, 14, 8, '#e8853a', 2);
   const g = ctx.createRadialGradient(lx, ly - 20, 2, lx, ly - 20, 70); g.addColorStop(0, 'rgba(255,214,140,.28)'); g.addColorStop(1, 'rgba(255,214,140,0)'); ctx.fillStyle = g; ctx.fillRect(lx - 70, ly - 90, 140, 140);
 }
+// Blasen dicht sitzender Azubis nicht übereinander: spätere zur Raummitte hin verschieben
+const BUBBLE_STATES = ['fidget', 'idle', 'loud', 'wait', 'cheat', 'question', 'wc', 'phoneSoon', 'phone', 'pc', 'plc', 'net', 'test', 'check', 'mat', 'climbSoon', 'climb', 'wcq', 'leak'];
+let bubbleOff = new Map();
+function layoutBubbles() {
+  bubbleOff = new Map();
+  const placed = [], mid = sx(RW / 2);
+  for (const k of G.kids) {
+    if (!isSeated(k) || !BUBBLE_STATES.includes(k.state)) continue;
+    const x0 = sx(k.x), y = sy(k.y) - 74, dir = x0 < mid ? 1 : -1;
+    let off = 0;
+    for (let tries = 0; tries < 4; tries++) {
+      if (!placed.some(p => Math.abs(p.x - (x0 + off)) < 30 && Math.abs(p.y - y) < 30)) break;
+      off += dir * 30;
+    }
+    placed.push({ x: x0 + off, y }); if (off) bubbleOff.set(k, off);
+  }
+}
 function renderOverlay() {
+  layoutBubbles();
   // Blasen mit Geduld-Ring
   for (const k of G.kids) {
-    const X = sx(k.x), Y = sy(k.y) - 74;
+    const off = bubbleOff.get(k) || 0, X = sx(k.x) + off, Y = sy(k.y) - 74;
     const E = CONFIG.events;
     if (k.state === 'fidget') {
       bubble(X, Y + 8, PAL.grey, 1 - k.t / CONFIG.kids.fidgetTime, '', COL.white, 8);
